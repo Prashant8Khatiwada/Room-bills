@@ -107,13 +107,19 @@ export function RoomAppShell({
       </div>
 
       <div className="flex flex-1 flex-col gap-0 overflow-y-auto p-2 pt-3">
-        {/* Dashboard Link — at the top like Linear */}
-        <div className="mb-1">
+        {/* Dashboard & Personal Wallet Links — at the top like Linear */}
+        <div className="mb-1 space-y-0.5">
           <NavItem
             href="/dashboard"
             label="All Rooms"
             icon={LayoutGrid}
             isActive={pathname === '/dashboard'}
+          />
+          <NavItem
+            href="/personal"
+            label="Personal Wallet"
+            icon={Wallet}
+            isActive={pathname.startsWith('/personal')}
           />
         </div>
 
@@ -247,7 +253,17 @@ export function RoomAppShell({
                       <p className="text-[10px] text-muted-foreground truncate">Active Member</p>
                     </div>
                   </div>
-                  <div className="pt-2">
+                  <div className="pt-2 space-y-1">
+                    <Link href="/personal" onClick={() => setProfileOpen(false)}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start text-xs text-foreground hover:bg-accent gap-2 h-8 px-2"
+                      >
+                        <Wallet className="size-3.5 text-primary" />
+                        Personal Wallet
+                      </Button>
+                    </Link>
                     <Button
                       variant="ghost"
                       size="sm"

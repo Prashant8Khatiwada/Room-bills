@@ -5,6 +5,10 @@ export const api = {
     logout: '/api/auth/logout',
     me: '/api/auth/me',
   },
+  user: {
+    profile: '/api/user/profile',
+    personalExpenses: '/api/user/personal-expenses',
+  },
   room: {
     create: '/api/rooms',
     join: '/api/rooms/join',
@@ -16,6 +20,7 @@ export const api = {
     dashboard: (roomId: string) => `/api/rooms/${roomId}/dashboard`,
     settings: (roomId: string) => `/api/rooms/${roomId}/settings`,
     regenerateInvite: (roomId: string) => `/api/rooms/${roomId}/regenerate-invite`,
+    allocateBalance: (roomId: string) => `/api/rooms/${roomId}/allocate`,
   },
   bill: {
     list: (roomId: string) => `/api/rooms/${roomId}/bills`,

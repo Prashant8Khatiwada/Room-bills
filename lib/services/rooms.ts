@@ -40,7 +40,11 @@ async function ensureUserExists(userId: string) {
   }
 }
 
-export async function createRoom(userId: string, name: string) {
+export async function createRoom(
+  userId: string,
+  name: string,
+  minBalanceRequired: number = 0
+) {
   const supabase = await createClient();
   await ensureUserExists(userId);
   let inviteCode = generateInviteCode();
@@ -71,6 +75,7 @@ export async function createRoom(userId: string, name: string) {
       name,
       invite_code: inviteCode,
       created_by: userId,
+      min_balance_required: Math.max(0, minBalanceRequired),
     })
     .select()
     .single();
@@ -79,11 +84,12 @@ export async function createRoom(userId: string, name: string) {
     throw new Error(`Failed to create room: ${roomError?.message}`);
   }
 
-  // Insert owner membership
+  // Insert owner membership with initial allocation equal to min_balance_required or 0
   await supabase.from('room_members').insert({
     room_id: room.id,
     user_id: userId,
     role: 'owner',
+    allocated_balance: Math.max(0, minBalanceRequired),
   });
 
   // Auto-open first settlement period
@@ -100,18 +106,33 @@ export async function createRoom(userId: string, name: string) {
   return room;
 }
 
-export async function joinRoom(userId: string, inviteCode: string) {
+export async function joinRoom(
+  userId: string,
+  inviteCode: string,
+  initialAllocation: number = 0
+) {
   const supabase = await createClient();
   await ensureUserExists(userId);
 
   const { data: room } = await supabase
     .from('rooms')
-    .select('id, name')
+    .select('id, name, min_balance_required')
     .eq('invite_code', inviteCode.toUpperCase())
     .single();
 
   if (!room) {
     throw new Error('Invalid invite code');
+  }
+
+  const minRequired = Number(room.min_balance_required || 0);
+  const allocated = Math.max(0, initialAllocation);
+
+  if (minRequired > 0 && allocated < minRequired) {
+    throw new Error(
+      `Cannot join room: Room requires a minimum balance allocation of Rs. ${minRequired.toFixed(
+        2
+      )}. You attempted to allocate Rs. ${allocated.toFixed(2)}.`
+    );
   }
 
   const { data: existingMember } = await supabase
@@ -129,6 +150,7 @@ export async function joinRoom(userId: string, inviteCode: string) {
     room_id: room.id,
     user_id: userId,
     role: 'member',
+    allocated_balance: allocated,
   });
 
   if (joinError) {
@@ -137,6 +159,41 @@ export async function joinRoom(userId: string, inviteCode: string) {
 
   return room;
 }
+
+export async function allocateRoomBalance(roomId: string, userId: string, newAllocation: number) {
+  await assertRoomMember(roomId, userId);
+  const supabase = await createClient();
+
+  const { data: room } = await supabase
+    .from('rooms')
+    .select('min_balance_required')
+    .eq('id', roomId)
+    .single();
+
+  const minRequired = Number(room?.min_balance_required || 0);
+  const targetAllocated = Math.max(0, newAllocation);
+
+  if (minRequired > 0 && targetAllocated < minRequired) {
+    throw new Error(
+      `Allocation failed: Minimum room balance required is Rs. ${minRequired.toFixed(2)}.`
+    );
+  }
+
+  const { data, error } = await supabase
+    .from('room_members')
+    .update({ allocated_balance: targetAllocated })
+    .eq('room_id', roomId)
+    .eq('user_id', userId)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update room balance allocation: ${error.message}`);
+  }
+
+  return data;
+}
+
 
 export async function listUserRooms(userId: string) {
   const supabase = await createClient();

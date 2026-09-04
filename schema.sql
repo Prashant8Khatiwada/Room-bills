@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS public.users (
   name TEXT NOT NULL,
   avatar_url TEXT,
   role TEXT DEFAULT 'user',
+  total_income NUMERIC(12, 2) DEFAULT 0,
+  warning_limit NUMERIC(12, 2) DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -22,9 +24,9 @@ CREATE TABLE IF NOT EXISTS public.rooms (
   settlement_frequency TEXT NOT NULL DEFAULT 'monthly', -- 'monthly' | 'biweekly' | 'weekly' | 'custom'
   recurring_settlement_day INT NOT NULL DEFAULT 1,
   target_budget NUMERIC(12, 2) DEFAULT 0,
+  min_balance_required NUMERIC(12, 2) DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
-
 
 -- 3. Room Members Table
 CREATE TABLE IF NOT EXISTS public.room_members (
@@ -32,9 +34,20 @@ CREATE TABLE IF NOT EXISTS public.room_members (
   room_id UUID NOT NULL REFERENCES public.rooms(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   role TEXT NOT NULL DEFAULT 'member', -- 'owner' | 'member'
+  allocated_balance NUMERIC(12, 2) DEFAULT 0,
   joined_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(room_id, user_id)
 );
+
+-- 3b. Personal Expenses Table (Top-Level Non-Room Expenses)
+CREATE TABLE IF NOT EXISTS public.personal_expenses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 
 -- 4. Settlement Periods Table
 CREATE TABLE IF NOT EXISTS public.settlement_periods (

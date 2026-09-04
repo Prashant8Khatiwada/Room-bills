@@ -7,6 +7,9 @@ export interface RoomDashboardData {
     id: string;
     name: string;
     inviteCode: string;
+    currency: string;
+    minBalanceRequired: number;
+    targetBudget: number;
     createdAt: string;
   };
   stats: {
@@ -15,13 +18,15 @@ export interface RoomDashboardData {
     totalBillsAmount: number;
     totalBillsCount: number;
     memberCount: number;
-    userNetBalance: number; // positive = user is owed, negative = user owes
+    userNetBalance: number;
+    totalRoomPool: number;
   };
   membersContribution: Array<{
     userId: string;
     name: string;
     email: string;
     totalPaid: number;
+    allocatedBalance: number;
     percentage: number;
   }>;
   categoryBreakdown: Array<{
@@ -54,7 +59,7 @@ export async function getRoomDashboardData(
   // 1. Room info
   const { data: room, error: roomError } = await supabase
     .from('rooms')
-    .select('id, name, invite_code, created_at')
+    .select('id, name, invite_code, currency, min_balance_required, target_budget, created_at')
     .eq('id', roomId)
     .single();
 
@@ -65,14 +70,17 @@ export async function getRoomDashboardData(
   // 2. Members info
   const { data: membersData } = await supabase
     .from('room_members')
-    .select('user_id, role, users(id, name, email)')
+    .select('user_id, role, allocated_balance, users(id, name, email)')
     .eq('room_id', roomId);
 
   const members = (membersData || []).map((m: any) => ({
     userId: m.user_id,
     name: m.users?.name || m.users?.email?.split('@')[0] || 'Member',
     email: m.users?.email || '',
+    allocatedBalance: Number(m.allocated_balance || 0),
   }));
+
+  const totalRoomPool = members.reduce((sum, m) => sum + m.allocatedBalance, 0);
 
   // 3. Bills & Expenses (All recorded in bills table)
   const { data: bills } = await supabase
@@ -93,7 +101,7 @@ export async function getRoomDashboardData(
   const totalExpensesAmount = expenseBills.reduce((sum, e) => sum + Number(e.amount || 0), 0);
   const totalExpensesCount = expenseBills.length;
 
-  // Calculate member contributions (total paid by member across all bills)
+  // Calculate member contributions
   const paidMap: Record<string, number> = {};
   members.forEach((m) => {
     paidMap[m.userId] = 0;
@@ -115,6 +123,7 @@ export async function getRoomDashboardData(
       name: m.name,
       email: m.email,
       totalPaid: Number(paid.toFixed(2)),
+      allocatedBalance: Number(m.allocatedBalance.toFixed(2)),
       percentage: Number(percentage.toFixed(1)),
     };
   });
@@ -157,6 +166,9 @@ export async function getRoomDashboardData(
       id: room.id,
       name: room.name,
       inviteCode: room.invite_code,
+      currency: room.currency || 'Rs.',
+      minBalanceRequired: Number(room.min_balance_required || 0),
+      targetBudget: Number(room.target_budget || 0),
       createdAt: room.created_at,
     },
     stats: {
@@ -166,6 +178,7 @@ export async function getRoomDashboardData(
       totalBillsCount,
       memberCount: members.length,
       userNetBalance,
+      totalRoomPool: Number(totalRoomPool.toFixed(2)),
     },
     membersContribution,
     categoryBreakdown,
@@ -176,3 +189,4 @@ export async function getRoomDashboardData(
     },
   };
 }
+

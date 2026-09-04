@@ -1,11 +1,14 @@
 'use client';
 
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/apiClient';
 import { api } from '@/lib/apiEndpoints';
 import { RoomDashboardData } from '@/lib/services/dashboard';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AllocateBalanceModal } from './AllocateBalanceModal';
 import Link from 'next/link';
 import {
   Wallet,
@@ -23,8 +26,12 @@ import {
   UserCheck,
   Clock,
   Sparkles,
+  PiggyBank,
+  AlertTriangle,
+  Coins,
+  Crown,
+  Filter,
 } from 'lucide-react';
-import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 
 interface RoomDashboardViewProps {
@@ -52,6 +59,8 @@ const BAR_GRADIENTS = [
 
 export function RoomDashboardView({ roomId }: RoomDashboardViewProps) {
   const [copied, setCopied] = useState(false);
+  const [selectedMemberFilter, setSelectedMemberFilter] = useState('all');
+  const [allocateModalOpen, setAllocateModalOpen] = useState(false);
 
   const { data, isLoading, error } = useQuery<RoomDashboardData>({
     queryKey: ['room-dashboard', roomId],
@@ -95,21 +104,34 @@ export function RoomDashboardView({ roomId }: RoomDashboardViewProps) {
   }
 
   const { room, stats, membersContribution, categoryBreakdown, recentActivity } = data;
-  const isNetOwed = stats.userNetBalance > 0;
-  const isNetOwes = stats.userNetBalance < 0;
+  const currency = room.currency || 'Rs.';
+
+  // Filter members or activity if member filter selected
+  const displayedMembers = selectedMemberFilter === 'all'
+    ? membersContribution
+    : membersContribution.filter((m) => m.userId === selectedMemberFilter);
+
+  const displayedActivity = selectedMemberFilter === 'all'
+    ? recentActivity
+    : recentActivity.filter((act) => {
+        const matchingMember = membersContribution.find((m) => m.userId === selectedMemberFilter);
+        return matchingMember && act.paidByName.toLowerCase().includes(matchingMember.name.toLowerCase());
+      });
+
+  const currentUserContribution = membersContribution.find((m) => m.userId === selectedMemberFilter) || membersContribution[0];
 
   return (
     <div className="space-y-6">
 
-      {/* ── Room Header & Quick Invite Action ─────────────────────── */}
+      {/* ── Room Header & Quick Actions ───────────────────────────── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 pb-5">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-[11px] font-semibold uppercase tracking-widest text-primary">
-              Room Dashboard
+              Live Room Command Center
             </span>
-            <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-              Active Workspace
+            <span className="inline-flex items-center rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+              Live Common Sync
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
@@ -117,7 +139,28 @@ export function RoomDashboardView({ roomId }: RoomDashboardViewProps) {
           </h1>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Member Common Filter Dropdown */}
+          <div className="flex items-center gap-1.5 bg-card border border-border rounded-lg px-2.5 py-1">
+            <Filter className="size-3.5 text-muted-foreground" />
+            <Select
+              value={selectedMemberFilter}
+              onValueChange={(val) => val && setSelectedMemberFilter(val)}
+            >
+              <SelectTrigger className="h-7 border-none shadow-none text-xs font-semibold focus:ring-0 p-0">
+                <SelectValue placeholder="Filter member" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Room Members (Common View)</SelectItem>
+                {membersContribution.map((m) => (
+                  <SelectItem key={m.userId} value={m.userId}>
+                    {m.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Copy Invite Code */}
           <Button
             variant="outline"
@@ -138,93 +181,91 @@ export function RoomDashboardView({ roomId }: RoomDashboardViewProps) {
             )}
           </Button>
 
-          {/* Quick Add Expense Link */}
-          <Link href={`/rooms/${roomId}/bills`}>
-            <Button size="sm" className="h-9 gap-1.5 text-xs font-semibold shadow-sm">
-              <Plus className="size-4" />
-              <span>Add Record</span>
-            </Button>
-          </Link>
+          {/* Allocate Funds Button */}
+          <Button
+            size="sm"
+            onClick={() => setAllocateModalOpen(true)}
+            className="h-9 gap-1.5 text-xs font-semibold shadow-sm bg-primary hover:bg-primary/90"
+          >
+            <PiggyBank className="size-4" />
+            <span>Manage Allocation</span>
+          </Button>
         </div>
       </div>
 
       {/* ── Key Metrics Cards Grid ────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
 
-        {/* 1. Total Room Expenses */}
+        {/* 1. Total Common Room Fund Pool */}
+        <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-card via-card to-emerald-500/5 p-4 transition-all duration-200 hover:shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Total Room Vault Pool
+            </span>
+            <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+              <Coins className="size-3.5" />
+            </div>
+          </div>
+          <p className="text-2xl font-extrabold text-foreground tracking-tight">
+            {currency} {stats.totalRoomPool.toLocaleString()}
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Sum of all roommate allocations
+          </p>
+        </div>
+
+        {/* 2. Total Room Expenses */}
         <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-card to-card/50 p-4 transition-all duration-200 hover:shadow-sm">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Total Expenses
+              Total Room Spend
             </span>
             <div className="flex size-7 items-center justify-center rounded-lg bg-orange-500/10 text-orange-500">
               <Wallet className="size-3.5" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-foreground tracking-tight">
-            ${stats.totalExpensesAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          <p className="text-2xl font-extrabold text-foreground tracking-tight">
+            {currency} {(stats.totalExpensesAmount + stats.totalBillsAmount).toLocaleString()}
           </p>
           <p className="mt-1 text-[11px] text-muted-foreground flex items-center gap-1">
-            <span className="font-medium text-foreground">{stats.totalExpensesCount}</span> recorded items
+            <span className="font-medium text-foreground">{stats.totalExpensesCount + stats.totalBillsCount}</span> items recorded
           </p>
         </div>
 
-        {/* 2. Total Bills */}
+        {/* 3. Room Min Requirement */}
         <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-card to-card/50 p-4 transition-all duration-200 hover:shadow-sm">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Recurring Bills
+              Min Room Req.
             </span>
-            <div className="flex size-7 items-center justify-center rounded-lg bg-sky-500/10 text-sky-500">
-              <Receipt className="size-3.5" />
+            <div className="flex size-7 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
+              <PiggyBank className="size-3.5" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-foreground tracking-tight">
-            ${stats.totalBillsAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          <p className="text-2xl font-extrabold text-foreground tracking-tight">
+            {currency} {room.minBalanceRequired.toLocaleString()}
           </p>
-          <p className="mt-1 text-[11px] text-muted-foreground flex items-center gap-1">
-            <span className="font-medium text-foreground">{stats.totalBillsCount}</span> active bills
-          </p>
-        </div>
-
-        {/* 3. Your Net Balance Position */}
-        <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-card to-card/50 p-4 transition-all duration-200 hover:shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Your Position
-            </span>
-            <div className={`flex size-7 items-center justify-center rounded-lg ${
-              isNetOwed ? 'bg-emerald-500/10 text-emerald-500' : isNetOwes ? 'bg-rose-500/10 text-rose-500' : 'bg-muted text-muted-foreground'
-            }`}>
-              {isNetOwed ? <ArrowDownLeft className="size-3.5" /> : isNetOwes ? <ArrowUpRight className="size-3.5" /> : <Scale className="size-3.5" />}
-            </div>
-          </div>
-          <p className={`text-2xl font-bold tracking-tight ${
-            isNetOwed ? 'text-emerald-500' : isNetOwes ? 'text-rose-500' : 'text-foreground'
-          }`}>
-            {isNetOwed ? `+$${stats.userNetBalance.toFixed(2)}` : isNetOwes ? `-$${Math.abs(stats.userNetBalance).toFixed(2)}` : '$0.00'}
-          </p>
-          <p className="mt-1 text-[11px] text-muted-foreground font-medium">
-            {isNetOwed ? 'You are owed' : isNetOwes ? 'You owe roommates' : 'All settled up'}
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Per member requirement
           </p>
         </div>
 
-        {/* 4. Room Members */}
+        {/* 4. Room Members Count */}
         <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-card to-card/50 p-4 transition-all duration-200 hover:shadow-sm">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Members
+              Room Members
             </span>
             <div className="flex size-7 items-center justify-center rounded-lg bg-violet-500/10 text-violet-500">
               <Users className="size-3.5" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-foreground tracking-tight">
+          <p className="text-2xl font-extrabold text-foreground tracking-tight">
             {stats.memberCount}
           </p>
           <p className="mt-1 text-[11px] text-muted-foreground flex items-center gap-1">
             <UserCheck className="size-3 text-emerald-500" />
-            <span className="font-medium text-foreground">Roommates connected</span>
+            <span className="font-medium text-foreground">Active roommates</span>
           </p>
         </div>
       </div>
@@ -232,60 +273,69 @@ export function RoomDashboardView({ roomId }: RoomDashboardViewProps) {
       {/* ── Main Dashboard Analytics Section ──────────────────────── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
 
-        {/* Left Column (2 cols): Member Contribution Breakdown & Categories */}
+        {/* Left Column (2 cols): Member Contribution & Fund Allocation Leaderboard */}
         <div className="space-y-6 lg:col-span-2">
 
-          {/* Member Spending Distribution Chart Card */}
-          <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
+          {/* Member Fund Allocation & Contribution Leaderboard */}
+          <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <TrendingUp className="size-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-foreground">Member Contributions</h3>
-                  <p className="text-xs text-muted-foreground">Who paid how much for this room</p>
+                  <h3 className="text-sm font-bold text-foreground">Roommate Fund Allocations & Solvency</h3>
+                  <p className="text-xs text-muted-foreground">Live allocated room balances vs minimum criteria</p>
                 </div>
               </div>
-              <span className="text-xs font-medium text-muted-foreground">
-                Total: ${(stats.totalExpensesAmount + stats.totalBillsAmount).toFixed(2)}
-              </span>
             </div>
 
-            {/* Visual Stacked Progress Bar */}
-            {membersContribution.length > 0 && (stats.totalExpensesAmount + stats.totalBillsAmount) > 0 ? (
-              <div className="space-y-5">
-                {/* Stacked bar */}
-                <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted/60">
-                  {membersContribution.map((m, idx) => (
-                    <div
-                      key={m.userId}
-                      style={{ width: `${Math.max(m.percentage, 2)}%` }}
-                      className={`h-full bg-gradient-to-r ${BAR_GRADIENTS[idx % BAR_GRADIENTS.length]} transition-all duration-500`}
-                      title={`${m.name}: $${m.totalPaid} (${m.percentage}%)`}
-                    />
-                  ))}
-                </div>
+            <div className="divide-y divide-border border border-border rounded-xl bg-card overflow-hidden">
+              {displayedMembers.map((m, idx) => {
+                const isLowBalance = room.minBalanceRequired > 0 && m.allocatedBalance < room.minBalanceRequired;
+                const isTopPayer = idx === 0 && m.totalPaid > 0;
 
-                {/* Member legend & details list */}
-                <div className="space-y-3 pt-1">
-                  {membersContribution.map((m, idx) => (
-                    <div key={m.userId} className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className={`size-3 shrink-0 rounded-full bg-gradient-to-r ${BAR_GRADIENTS[idx % BAR_GRADIENTS.length]}`} />
-                        <span className="font-semibold text-foreground truncate">{m.name}</span>
-                        <span className="text-muted-foreground text-[11px]">({m.percentage}%)</span>
+                return (
+                  <div key={m.userId} className="p-3.5 flex items-center justify-between gap-4 hover:bg-accent/30 transition-colors">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`size-9 rounded-full bg-gradient-to-r ${BAR_GRADIENTS[idx % BAR_GRADIENTS.length]} text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-sm`}>
+                        {m.name.slice(0, 2).toUpperCase()}
                       </div>
-                      <span className="font-bold font-mono text-foreground">${m.totalPaid.toFixed(2)}</span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-bold text-foreground truncate">{m.name}</p>
+                          {isTopPayer && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center gap-1">
+                              <Crown className="size-3" /> Top Payer
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Paid {currency} {m.totalPaid.toFixed(2)} ({m.percentage}% of room spend)
+                        </p>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="py-8 text-center text-xs text-muted-foreground">
-                No contributions logged in this room yet. Add expenses to see statistics!
-              </div>
-            )}
+
+                    <div className="text-right shrink-0 space-y-1">
+                      <p className="text-sm font-extrabold text-foreground">
+                        {currency} {m.allocatedBalance.toFixed(2)}
+                      </p>
+                      <div>
+                        {isLowBalance ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                            <AlertTriangle className="size-3" /> Low Balance
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                            Solvent
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* Expense Category Breakdown Card */}
@@ -311,7 +361,7 @@ export function RoomDashboardView({ roomId }: RoomDashboardViewProps) {
                         <span className="font-medium text-foreground">{c.category}</span>
                         <div className="flex items-center gap-2">
                           <span className="text-muted-foreground text-[11px]">{c.percentage}%</span>
-                          <span className="font-mono font-semibold text-foreground">${c.amount.toFixed(2)}</span>
+                          <span className="font-mono font-semibold text-foreground">{currency} {c.amount.toFixed(2)}</span>
                         </div>
                       </div>
                       <div className="h-2 w-full overflow-hidden rounded-full bg-muted/60">
@@ -351,9 +401,9 @@ export function RoomDashboardView({ roomId }: RoomDashboardViewProps) {
               </Link>
             </div>
 
-            {recentActivity.length > 0 ? (
+            {displayedActivity.length > 0 ? (
               <div className="space-y-3">
-                {recentActivity.map((act) => {
+                {displayedActivity.map((act) => {
                   const isExpense = act.type === 'expense';
                   return (
                     <div
@@ -374,7 +424,7 @@ export function RoomDashboardView({ roomId }: RoomDashboardViewProps) {
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-xs font-bold font-mono text-foreground">${act.amount.toFixed(2)}</p>
+                        <p className="text-xs font-bold font-mono text-foreground">{currency} {act.amount.toFixed(2)}</p>
                         <p className="text-[10px] text-muted-foreground flex items-center justify-end gap-0.5">
                           <Clock className="size-2.5" />
                           {formatDistanceToNow(new Date(act.date), { addSuffix: true })}
@@ -386,32 +436,32 @@ export function RoomDashboardView({ roomId }: RoomDashboardViewProps) {
               </div>
             ) : (
               <div className="py-8 text-center text-xs text-muted-foreground">
-                No activity recorded yet in this room.
+                No activity recorded yet for selected filter.
               </div>
             )}
           </div>
 
-          {/* Room Quick Shortcuts Card */}
+          {/* Quick Shortcuts Card */}
           <div className="rounded-2xl border border-border/60 bg-gradient-to-br from-card via-card to-primary/5 p-5 shadow-sm space-y-3">
             <div className="flex items-center gap-2">
               <Sparkles className="size-4 text-primary" />
               <h3 className="text-sm font-bold text-foreground">Quick Actions</h3>
             </div>
             <div className="grid grid-cols-1 gap-2">
-              <Link href={`/rooms/${roomId}/bills?category=expense`} className="w-full">
+              <Link href={`/personal`} className="w-full">
                 <Button variant="outline" className="w-full justify-between h-9 text-xs font-medium border-border/70 hover:border-primary">
                   <span className="flex items-center gap-2">
-                    <Wallet className="size-3.5 text-orange-500" />
-                    Record Expense
+                    <Wallet className="size-3.5 text-violet-500" />
+                    Personal Global Wallet
                   </span>
-                  <Plus className="size-3.5 text-muted-foreground" />
+                  <ArrowUpRight className="size-3.5 text-muted-foreground" />
                 </Button>
               </Link>
               <Link href={`/rooms/${roomId}/bills`} className="w-full">
                 <Button variant="outline" className="w-full justify-between h-9 text-xs font-medium border-border/70 hover:border-primary">
                   <span className="flex items-center gap-2">
                     <Receipt className="size-3.5 text-sky-500" />
-                    Create Bill
+                    Record Expense or Bill
                   </span>
                   <Plus className="size-3.5 text-muted-foreground" />
                 </Button>
@@ -420,7 +470,7 @@ export function RoomDashboardView({ roomId }: RoomDashboardViewProps) {
                 <Button variant="outline" className="w-full justify-between h-9 text-xs font-medium border-border/70 hover:border-primary">
                   <span className="flex items-center gap-2">
                     <Scale className="size-3.5 text-emerald-500" />
-                    Calculate Settlement
+                    View Debt Settlement
                   </span>
                   <ArrowUpRight className="size-3.5 text-muted-foreground" />
                 </Button>
@@ -432,6 +482,15 @@ export function RoomDashboardView({ roomId }: RoomDashboardViewProps) {
 
       </div>
 
+      {/* Allocate Modal */}
+      <AllocateBalanceModal
+        roomId={roomId}
+        roomName={room.name}
+        minRequired={room.minBalanceRequired}
+        currentAllocated={currentUserContribution?.allocatedBalance || 0}
+        open={allocateModalOpen}
+        onOpenChange={setAllocateModalOpen}
+      />
     </div>
   );
 }
