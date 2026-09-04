@@ -1006,7 +1006,7 @@ function BillsPageContent() {
                     </div>
 
                     <div className="flex items-center gap-1">
-                      {isOwner && (
+                      {(isOwner || t.created_by === currentUserId || !t.created_by) && (
                         <>
                           <Button
                             variant="ghost"
@@ -1167,54 +1167,102 @@ function BillsPageContent() {
           </CardHeader>
           <CardContent className="p-6">
             {(!billLogs || billLogs.length === 0) ? (
-              <div className="p-8 text-center text-xs text-muted-foreground">
-                No bill creation or deletion logs recorded yet.
+              <div className="p-12 text-center text-xs text-muted-foreground">
+                <div className="flex size-12 items-center justify-center rounded-2xl bg-muted mx-auto mb-3 text-muted-foreground">
+                  <Clock className="size-6" />
+                </div>
+                <p className="font-bold text-foreground text-sm">No activity recorded yet</p>
+                <p className="text-xs text-muted-foreground mt-1">Actions taken on bills and templates will form a chronological audit tree here.</p>
               </div>
             ) : (
-              <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-border/80">
+              <div className="relative pl-8 space-y-6 before:absolute before:left-3.5 before:top-3 before:bottom-3 before:w-0.5 before:bg-linear-to-b before:from-primary/60 before:via-border before:to-transparent">
                 {billLogs.map((log) => {
                   const actionType = log.action || 'paid_bill';
                   const performer = log.userName || log.users?.name || log.users?.email?.split('@')[0] || 'Room Member';
                   const title = log.title || log.details?.name || log.details?.title || 'Bill Item';
                   const amount = log.amount || log.details?.amount;
                   const formattedDate = log.created_at
-                    ? new Date(log.created_at).toLocaleString()
+                    ? new Date(log.created_at).toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
                     : 'Recently';
 
-                  let actionBadge = { label: 'PAID BILL', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' };
-                  let sentence = `${performer} paid NPR ${amount?.toLocaleString() || 0} for ${title}`;
+                  let actionConfig = {
+                    label: 'Paid Bill',
+                    badgeStyle: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30',
+                    nodeBg: 'bg-emerald-500 text-white ring-4 ring-emerald-500/10',
+                    icon: <Receipt className="size-3.5" />,
+                  };
 
                   if (actionType === 'deleted_bill' || actionType === 'deleted') {
-                    actionBadge = { label: 'DELETED BILL', color: 'bg-rose-500/10 text-rose-500 border-rose-500/20' };
-                    sentence = `${performer} deleted logged bill "${title}"${amount ? ` (NPR ${amount.toLocaleString()})` : ''}`;
+                    actionConfig = {
+                      label: 'Deleted Bill',
+                      badgeStyle: 'bg-rose-500/10 text-rose-600 border-rose-500/30',
+                      nodeBg: 'bg-rose-500 text-white ring-4 ring-rose-500/10',
+                      icon: <Trash2 className="size-3.5" />,
+                    };
                   } else if (actionType === 'created_template') {
-                    actionBadge = { label: 'PROPOSED TEMPLATE', color: 'bg-amber-500/10 text-amber-500 border-amber-500/20' };
-                    sentence = `${performer} proposed template "${title}"`;
+                    actionConfig = {
+                      label: 'Proposed Template',
+                      badgeStyle: 'bg-amber-500/10 text-amber-600 border-amber-500/30',
+                      nodeBg: 'bg-amber-500 text-white ring-4 ring-amber-500/10',
+                      icon: <FileText className="size-3.5" />,
+                    };
                   } else if (actionType === 'approved_template') {
-                    actionBadge = { label: 'APPROVED TEMPLATE', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' };
-                    sentence = `${performer} approved bill template "${title}"`;
+                    actionConfig = {
+                      label: 'Approved Template',
+                      badgeStyle: 'bg-teal-500/10 text-teal-600 border-teal-500/30',
+                      nodeBg: 'bg-teal-500 text-white ring-4 ring-teal-500/10',
+                      icon: <Check className="size-3.5" />,
+                    };
                   } else if (actionType === 'deleted_template') {
-                    actionBadge = { label: 'DELETED TEMPLATE', color: 'bg-rose-500/10 text-rose-500 border-rose-500/20' };
-                    sentence = `${performer} deleted bill template "${title}"`;
+                    actionConfig = {
+                      label: 'Deleted Template',
+                      badgeStyle: 'bg-slate-500/10 text-slate-600 border-slate-500/30',
+                      nodeBg: 'bg-slate-600 text-white ring-4 ring-slate-500/10',
+                      icon: <Trash2 className="size-3.5" />,
+                    };
                   }
 
                   return (
-                    <div key={log.id} className="relative group flex flex-col gap-1 text-xs">
-                      {/* Timeline node dot */}
-                      <span className="absolute -left-[27px] top-1.5 size-3 rounded-full border-2 border-background bg-primary shadow-xs" />
-                      
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider border ${actionBadge.color}`}>
-                            {actionBadge.label}
-                          </span>
-                          <span className="font-bold text-foreground text-sm">
-                            {sentence}
+                    <div key={log.id} className="relative group">
+                      {/* Timeline node icon */}
+                      <span className={`absolute -left-[37px] top-2 flex size-6 items-center justify-center rounded-full transition-transform group-hover:scale-110 ${actionConfig.nodeBg}`}>
+                        {actionConfig.icon}
+                      </span>
+
+                      {/* Log Card Box */}
+                      <div className="rounded-xl border border-border/70 bg-card p-4 shadow-2xs hover:border-primary/40 transition-colors">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold border uppercase tracking-wide ${actionConfig.badgeStyle}`}>
+                              {actionConfig.label}
+                            </span>
+                            <span className="font-extrabold text-foreground text-sm">
+                              {title}
+                            </span>
+                          </div>
+                          <span className="text-[11px] font-mono font-medium text-muted-foreground shrink-0 flex items-center gap-1">
+                            <Clock className="size-3" />
+                            {formattedDate}
                           </span>
                         </div>
-                        <span className="text-[10px] font-mono text-muted-foreground shrink-0">
-                          {formattedDate}
-                        </span>
+
+                        <div className="mt-2.5 flex items-center justify-between border-t border-border/40 pt-2.5 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1.5 font-medium">
+                            <span className="size-2 rounded-full bg-primary/70" />
+                            Performed by <strong className="text-foreground">{performer}</strong>
+                          </span>
+                          {amount ? (
+                            <span className="font-mono font-bold text-primary text-xs">
+                              NPR {amount.toLocaleString()}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   );
