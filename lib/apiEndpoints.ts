@@ -11,7 +11,11 @@ export const api = {
     list: '/api/rooms',
     detail: (roomId: string) => `/api/rooms/${roomId}`,
     members: (roomId: string) => `/api/rooms/${roomId}/members`,
+    updateMember: (roomId: string, memberId: string) => `/api/rooms/${roomId}/members/${memberId}`,
+    removeMember: (roomId: string, memberId: string) => `/api/rooms/${roomId}/members/${memberId}`,
     dashboard: (roomId: string) => `/api/rooms/${roomId}/dashboard`,
+    settings: (roomId: string) => `/api/rooms/${roomId}/settings`,
+    regenerateInvite: (roomId: string) => `/api/rooms/${roomId}/regenerate-invite`,
   },
   bill: {
     list: (roomId: string) => `/api/rooms/${roomId}/bills`,
@@ -21,6 +25,7 @@ export const api = {
   settlement: {
     current: (roomId: string) => `/api/rooms/${roomId}/settlement`,
     close: (roomId: string) => `/api/rooms/${roomId}/settlement/close`,
+    history: (roomId: string) => `/api/rooms/${roomId}/settlement/history`,
   },
   admin: {
     users: '/api/admin/users',

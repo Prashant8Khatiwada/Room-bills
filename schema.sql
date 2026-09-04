@@ -18,8 +18,13 @@ CREATE TABLE IF NOT EXISTS public.rooms (
   name TEXT NOT NULL,
   join_code TEXT NOT NULL UNIQUE,
   owner_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  currency TEXT NOT NULL DEFAULT 'Rs.',
+  settlement_frequency TEXT NOT NULL DEFAULT 'monthly', -- 'monthly' | 'biweekly' | 'weekly' | 'custom'
+  recurring_settlement_day INT NOT NULL DEFAULT 1,
+  target_budget NUMERIC(12, 2) DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
 
 -- 3. Room Members Table
 CREATE TABLE IF NOT EXISTS public.room_members (

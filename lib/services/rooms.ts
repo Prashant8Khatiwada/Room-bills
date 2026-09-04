@@ -171,8 +171,184 @@ export async function getRoomMembers(roomId: string, userId: string) {
   const supabase = await createClient();
   const { data: members } = await supabase
     .from('room_members')
-    .select('role, joined_at, users(id, name, email)')
+    .select('id, user_id, role, joined_at, users(id, name, email, avatar_url)')
     .eq('room_id', roomId);
 
   return members || [];
 }
+
+export async function updateRoomSettings(
+  roomId: string,
+  userId: string,
+  updates: {
+    name?: string;
+    currency?: string;
+    settlement_frequency?: string;
+    recurring_settlement_day?: number;
+    target_budget?: number;
+  }
+) {
+  await assertRoomMember(roomId, userId);
+  const supabase = await createClient();
+
+  // Verify owner
+  const { data: member } = await supabase
+    .from('room_members')
+    .select('role')
+    .eq('room_id', roomId)
+    .eq('user_id', userId)
+    .single();
+
+  if (member?.role !== 'owner') {
+    throw new Error('Forbidden: Only room owners can edit room settings');
+  }
+
+  const { data: room, error } = await supabase
+    .from('rooms')
+    .update({
+      ...(updates.name && { name: updates.name.trim() }),
+      ...(updates.currency && { currency: updates.currency.trim() }),
+      ...(updates.settlement_frequency && { settlement_frequency: updates.settlement_frequency }),
+      ...(updates.recurring_settlement_day !== undefined && {
+        recurring_settlement_day: Math.max(1, Math.min(28, updates.recurring_settlement_day)),
+      }),
+      ...(updates.target_budget !== undefined && { target_budget: Math.max(0, updates.target_budget) }),
+    })
+    .eq('id', roomId)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update room settings: ${error.message}`);
+  }
+
+  return room;
+}
+
+export async function regenerateInviteCode(roomId: string, userId: string) {
+  await assertRoomMember(roomId, userId);
+  const supabase = await createClient();
+
+  const { data: member } = await supabase
+    .from('room_members')
+    .select('role')
+    .eq('room_id', roomId)
+    .eq('user_id', userId)
+    .single();
+
+  if (member?.role !== 'owner') {
+    throw new Error('Forbidden: Only room owners can regenerate invite code');
+  }
+
+  const newCode = generateInviteCode();
+  const { data: room, error } = await supabase
+    .from('rooms')
+    .update({ invite_code: newCode })
+    .eq('id', roomId)
+    .select()
+    .single();
+
+  if (error) {
+    // Try updating join_code if invite_code column doesn't match
+    const { data: roomAlt, error: errAlt } = await supabase
+      .from('rooms')
+      .update({ join_code: newCode })
+      .eq('id', roomId)
+      .select()
+      .single();
+
+    if (errAlt) throw new Error(`Failed to regenerate invite code: ${error.message}`);
+    return roomAlt;
+  }
+
+  return room;
+}
+
+export async function updateMemberRole(
+  roomId: string,
+  userId: string,
+  targetUserId: string,
+  newRole: 'owner' | 'member'
+) {
+  await assertRoomMember(roomId, userId);
+  const supabase = await createClient();
+
+  const { data: caller } = await supabase
+    .from('room_members')
+    .select('role')
+    .eq('room_id', roomId)
+    .eq('user_id', userId)
+    .single();
+
+  if (caller?.role !== 'owner') {
+    throw new Error('Forbidden: Only room owners can manage member roles');
+  }
+
+  if (newRole === 'owner') {
+    // Transfer ownership: downgrade current owner, upgrade target
+    await supabase
+      .from('room_members')
+      .update({ role: 'member' })
+      .eq('room_id', roomId)
+      .eq('user_id', userId);
+
+    await supabase
+      .from('rooms')
+      .update({ created_by: targetUserId, owner_id: targetUserId })
+      .eq('id', roomId);
+  }
+
+  const { data, error } = await supabase
+    .from('room_members')
+    .update({ role: newRole })
+    .eq('room_id', roomId)
+    .eq('user_id', targetUserId)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update member role: ${error.message}`);
+  }
+
+  return data;
+}
+
+export async function removeMember(roomId: string, userId: string, targetUserId: string) {
+  await assertRoomMember(roomId, userId);
+  const supabase = await createClient();
+
+  const { data: caller } = await supabase
+    .from('room_members')
+    .select('role')
+    .eq('room_id', roomId)
+    .eq('user_id', userId)
+    .single();
+
+  if (caller?.role !== 'owner' && userId !== targetUserId) {
+    throw new Error('Forbidden: You can only remove yourself or be removed by room owner');
+  }
+
+  const { data: targetMember } = await supabase
+    .from('room_members')
+    .select('role')
+    .eq('room_id', roomId)
+    .eq('user_id', targetUserId)
+    .single();
+
+  if (targetMember?.role === 'owner') {
+    throw new Error('Cannot remove room owner. Transfer ownership first.');
+  }
+
+  const { error } = await supabase
+    .from('room_members')
+    .delete()
+    .eq('room_id', roomId)
+    .eq('user_id', targetUserId);
+
+  if (error) {
+    throw new Error(`Failed to remove member: ${error.message}`);
+  }
+
+  return { success: true };
+}
+
