@@ -139,10 +139,10 @@ export function RoomDashboardView({ roomId }: RoomDashboardViewProps) {
           </Button>
 
           {/* Quick Add Expense Link */}
-          <Link href={`/rooms/${roomId}/expenses`}>
+          <Link href={`/rooms/${roomId}/bills`}>
             <Button size="sm" className="h-9 gap-1.5 text-xs font-semibold shadow-sm">
               <Plus className="size-4" />
-              <span>Add Expense</span>
+              <span>Add Record</span>
             </Button>
           </Link>
         </div>
@@ -344,7 +344,7 @@ export function RoomDashboardView({ roomId }: RoomDashboardViewProps) {
                 </div>
                 <h3 className="text-sm font-bold text-foreground">Recent Activity</h3>
               </div>
-              <Link href={`/rooms/${roomId}/expenses`}>
+              <Link href={`/rooms/${roomId}/bills`}>
                 <Button variant="ghost" size="sm" className="h-7 text-xs text-primary px-2 hover:bg-primary/10">
                   View all
                 </Button>
@@ -398,7 +398,7 @@ export function RoomDashboardView({ roomId }: RoomDashboardViewProps) {
               <h3 className="text-sm font-bold text-foreground">Quick Actions</h3>
             </div>
             <div className="grid grid-cols-1 gap-2">
-              <Link href={`/rooms/${roomId}/expenses`} className="w-full">
+              <Link href={`/rooms/${roomId}/bills?category=expense`} className="w-full">
                 <Button variant="outline" className="w-full justify-between h-9 text-xs font-medium border-border/70 hover:border-primary">
                   <span className="flex items-center gap-2">
                     <Wallet className="size-3.5 text-orange-500" />

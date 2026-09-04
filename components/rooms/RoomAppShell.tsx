@@ -265,9 +265,9 @@ export function RoomAppShell({
         {/* Center floating action button */}
         <div className="-mt-5 flex flex-col items-center gap-0.5">
           <Link
-            href={`/rooms/${roomId}/expenses`}
+            href={`/rooms/${roomId}/bills`}
             className="flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/25 ring-4 ring-background active:scale-95 transition-transform"
-            title="Add Expense"
+            title="Add Bill or Expense"
           >
             <Plus className="size-6" />
           </Link>
