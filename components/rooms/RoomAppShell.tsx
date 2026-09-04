@@ -18,6 +18,8 @@ import {
   Menu,
   X,
   Settings,
+  Building2,
+  ArrowLeft,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/apiClient';
@@ -25,18 +27,18 @@ import { api } from '@/lib/apiEndpoints';
 import { useState } from 'react';
 
 const sidebarNavItems = (roomId: string) => [
-  { href: `/rooms/${roomId}/dashboard`,  label: 'Dashboard',        icon: LayoutDashboard, section: 'room' },
-  { href: `/rooms/${roomId}/bills`,      label: 'Bills & Expenses', icon: Receipt,         section: 'room' },
-  { href: `/rooms/${roomId}/catalog`,    label: 'Room Catalog',     icon: Package,         section: 'room' },
-  { href: `/rooms/${roomId}/logs`,       label: 'Audit Logs',       icon: History,         section: 'room' },
-  { href: `/rooms/${roomId}/settlement`, label: 'Settlement',       icon: Scale,           section: 'room' },
+  { href: `/rooms/${roomId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard, section: 'room' },
+  { href: `/rooms/${roomId}/bills`, label: 'Bills & Expenses', icon: Receipt, section: 'room' },
+  { href: `/rooms/${roomId}/catalog`, label: 'Room Catalog', icon: Package, section: 'room' },
+  { href: `/rooms/${roomId}/logs`, label: 'Audit Logs', icon: History, section: 'room' },
+  { href: `/rooms/${roomId}/settlement`, label: 'Settlement', icon: Scale, section: 'room' },
 ];
 
 const bottomNavItems = (roomId: string) => [
-  { href: `/rooms/${roomId}/dashboard`,  label: 'Dashboard',  icon: LayoutDashboard },
-  { href: `/rooms/${roomId}/bills`,      label: 'Bills',      icon: Receipt },
-  { href: `/rooms/${roomId}/settlement`, label: 'Settle',     icon: Scale },
-  { href: `/rooms/${roomId}/settings`,   label: 'Settings',   icon: Settings },
+  { href: `/rooms/${roomId}/dashboard`, label: 'Dashboard', icon: LayoutDashboard },
+  { href: `/rooms/${roomId}/bills`, label: 'Bills', icon: Receipt },
+  { href: `/rooms/${roomId}/settlement`, label: 'Settle', icon: Scale },
+  { href: `/rooms/${roomId}/settings`, label: 'Settings', icon: Settings },
 ];
 
 
@@ -54,16 +56,14 @@ function NavItem({
   return (
     <Link
       href={href}
-      className={`group flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-all duration-100 ${
-        isActive
-          ? 'bg-accent text-foreground'
-          : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-      }`}
+      className={`group flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-all duration-100 ${isActive
+        ? 'bg-accent text-foreground'
+        : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+        }`}
     >
       <Icon
-        className={`size-4 shrink-0 transition-colors ${
-          isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
-        }`}
+        className={`size-4 shrink-0 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
+          }`}
       />
       {label}
     </Link>
@@ -125,106 +125,113 @@ export function RoomAppShell({
 
   const SidebarContent = () => (
     <div className="flex h-full flex-col">
-      {/* Logo / Branding */}
-      <div className="flex h-12 items-center border-b border-border px-4">
-        <div className="flex items-center gap-2">
-          <div className="flex size-6 items-center justify-center rounded-md bg-primary text-[11px] font-bold text-primary-foreground">
-            R
+      {/* Top Left Header: RoomSwitcher if inside a room, or Room Tracker logo if global */}
+      <div className="flex h-12 items-center border-b border-border px-3">
+        {isInsideRoom && activeRoomId ? (
+          <div className="w-full">
+            <RoomSwitcher />
           </div>
-          <span className="text-[13px] font-semibold tracking-tight text-foreground">Room Tracker</span>
-        </div>
-      </div>
-
-      <div className="flex flex-1 flex-col gap-0 overflow-y-auto p-2 pt-3">
-        {/* Navigation Links — Top Level */}
-        <div className="mb-1 space-y-0.5">
-          <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
-            Main
-          </p>
-          <NavItem
-            href="/dashboard"
-            label="Dashboard"
-            icon={LayoutDashboard}
-            isActive={pathname === '/dashboard'}
-          />
-          <NavItem
-            href="/rooms"
-            label="All Rooms"
-            icon={LayoutGrid}
-            isActive={pathname === '/rooms'}
-          />
-          <NavItem
-            href="/incomes"
-            label="Incomes & Loans"
-            icon={Wallet}
-            isActive={pathname === '/incomes'}
-          />
-          <NavItem
-            href="/expenses"
-            label="Personal Expenses"
-            icon={Receipt}
-            isActive={pathname === '/expenses'}
-          />
-          <NavItem
-            href="/settings"
-            label="Settings"
-            icon={Settings}
-            isActive={pathname === '/settings'}
-          />
-        </div>
-
-        {/* Room Specific Navigation & Switcher — ONLY when inside a room route */}
-        {isInsideRoom && activeRoomId && (
-          <>
-            <div className="my-2 border-t border-border/60" />
-            <div className="px-0.5 space-y-3">
-              {/* Workspace / Room Switcher */}
-              <div>
-                <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
-                  Workspace
-                </p>
-                <RoomSwitcher />
-              </div>
-
-              {/* Room Nav Links */}
-              <div>
-                <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
-                  Room Options
-                </p>
-                <nav className="flex flex-col gap-0.5">
-                  {navItems.map((item) => (
-                    <NavItem
-                      key={item.href}
-                      href={item.href}
-                      label={item.label}
-                      icon={item.icon}
-                      isActive={pathname.startsWith(item.href)}
-                    />
-                  ))}
-                </nav>
-              </div>
+        ) : (
+          <div className="flex items-center gap-2 px-1">
+            <div className="flex size-6 items-center justify-center rounded-md bg-primary text-[11px] font-bold text-primary-foreground">
+              R
             </div>
-          </>
+            <span className="text-[13px] font-semibold tracking-tight text-foreground">Room Tracker</span>
+          </div>
         )}
       </div>
 
-      {/* Sidebar Bottom Left Footer: Room Settings — ONLY when inside a room */}
-      {isInsideRoom && activeRoomId && (
-        <div className="border-t border-border p-2.5">
+      <div className="flex flex-1 flex-col gap-0 overflow-y-auto p-2 pt-3">
+        {/* ROOM SCOPED SIDEBAR CONTENT */}
+        {isInsideRoom && activeRoomId ? (
+          <div className="px-0.5 space-y-3">
+            {/* Return to Main Link */}
+            <Link
+              href="/rooms"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground transition-colors mb-1"
+            >
+              <ArrowLeft className="size-4 shrink-0 text-primary" />
+              <span>Back to Rooms</span>
+            </Link>
+
+            {/* Room Options */}
+            <div>
+              <nav className="flex flex-col gap-0.5 mt-2">
+                {navItems.map((item) => (
+                  <NavItem
+                    key={item.href}
+                    href={item.href}
+                    label={item.label}
+                    icon={item.icon}
+                    isActive={pathname.startsWith(item.href)}
+                  />
+                ))}
+              </nav>
+            </div>
+          </div>
+        ) : (
+          /* GLOBAL OUTERMOST SIDEBAR CONTENT */
+          <div className="mb-1 space-y-0.5">
+            <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+              Main
+            </p>
+            <NavItem
+              href="/dashboard"
+              label="Dashboard"
+              icon={LayoutDashboard}
+              isActive={pathname === '/dashboard'}
+            />
+            <NavItem
+              href="/rooms"
+              label="Rooms"
+              icon={Building2}
+              isActive={pathname === '/rooms'}
+            />
+            <NavItem
+              href="/incomes"
+              label="Incomes & Loans"
+              icon={Wallet}
+              isActive={pathname === '/incomes'}
+            />
+            <NavItem
+              href="/expenses"
+              label="Personal Expenses"
+              icon={Receipt}
+              isActive={pathname === '/expenses'}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Sidebar Bottom Left Footer: Settings / Room Settings */}
+      <div className="border-t border-border p-2.5">
+        {isInsideRoom && activeRoomId ? (
           <Link
             href={`/rooms/${activeRoomId}/settings`}
             onClick={() => setMobileOpen(false)}
-            className={`group flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px] font-medium transition-all ${
-              pathname.startsWith(`/rooms/${activeRoomId}/settings`)
-                ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
-                : 'text-muted-foreground hover:bg-accent/80 hover:text-foreground'
-            }`}
+            className={`group flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px] font-medium transition-all ${pathname.startsWith(`/rooms/${activeRoomId}/settings`)
+              ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
+              : 'text-muted-foreground hover:bg-accent/80 hover:text-foreground'
+              }`}
           >
             <Settings className="size-4 shrink-0" />
             <span>Room Settings</span>
           </Link>
-        </div>
-      )}
+        ) : (
+          <Link
+            href="/settings"
+            onClick={() => setMobileOpen(false)}
+            className={`group flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px] font-medium transition-all ${pathname === '/settings'
+              ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
+              : 'text-muted-foreground hover:bg-accent/80 hover:text-foreground'
+              }`}
+          >
+            <Settings className="size-4 shrink-0" />
+            <span>Settings</span>
+          </Link>
+        )}
+      </div>
     </div>
   );
 
@@ -367,9 +374,8 @@ export function RoomAppShell({
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center gap-0.5 px-4 py-1 text-[11px] font-medium transition-colors ${
-                isActive ? 'text-primary' : 'text-muted-foreground'
-              }`}
+              className={`flex flex-col items-center gap-0.5 px-4 py-1 text-[11px] font-medium transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground'
+                }`}
             >
               <Icon className="size-5" />
               <span>{item.label}</span>
@@ -396,9 +402,8 @@ export function RoomAppShell({
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center gap-0.5 px-4 py-1 text-[11px] font-medium transition-colors ${
-                isActive ? 'text-primary' : 'text-muted-foreground'
-              }`}
+              className={`flex flex-col items-center gap-0.5 px-4 py-1 text-[11px] font-medium transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground'
+                }`}
             >
               <Icon className="size-5" />
               <span>{item.label}</span>

@@ -355,16 +355,16 @@ export default function PersonalExpensesPage() {
               <CardHeader>
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
                   <BadgeAlert className="size-5 text-amber-500" />
-                  Warning Limit Settings
+                  Personal Expenses Warning Limit Settings
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Set a soft warning threshold for your personal budget limit.
+                  Set a soft warning threshold for your personal budget limit. Visual alerts notify you when combined personal spending + room balance allocations pass this threshold.
                 </CardDescription>
               </CardHeader>
               <form onSubmit={handleSaveWarningLimit}>
                 <CardContent className="space-y-4">
                   <div className="space-y-1.5 max-w-md">
-                    <label className="text-xs font-semibold text-foreground">Warning Limit (Rs.)</label>
+                    <label className="text-xs font-semibold text-foreground">Personal Expenses Warning Limit (Rs.)</label>
                     <Input
                       type="number"
                       placeholder="e.g. 50000"
@@ -372,14 +372,14 @@ export default function PersonalExpensesPage() {
                       onChange={(e) => setWarningInput(e.target.value)}
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      Current warning threshold: <strong className="text-foreground">Rs. {warningLimit.toLocaleString()}</strong>
+                      Current threshold: <strong className="text-foreground">Rs. {warningLimit.toLocaleString()}</strong>
                     </p>
                   </div>
                 </CardContent>
-                <CardFooter className="border-t border-border/40 pt-3 flex justify-end">
+                <CardFooter className="pt-3 flex justify-end">
                   <Button size="sm" type="submit" disabled={updateProfileMutation.isPending} className="gap-2">
                     <Settings className="size-3.5" />
-                    {updateProfileMutation.isPending ? 'Saving...' : 'Save Settings'}
+                    {updateProfileMutation.isPending ? 'Saving...' : 'Save Personal Limit Settings'}
                   </Button>
                 </CardFooter>
               </form>

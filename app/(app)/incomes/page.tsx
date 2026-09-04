@@ -126,11 +126,9 @@ export default function IncomesAndLoansPage() {
     totalIncome = 0,
     totalPersonalIncome = 0,
     totalLoansBorrowed = 0,
-    warningLimit = 0,
-    totalPersonalSpent = 0,
-    totalAllocatedToRooms = 0,
+    loanWarningLimit = 0,
     unallocatedBalance = 0,
-    isWarningTriggered = false,
+    isLoanWarningTriggered = false,
     personalIncomes = [],
     lendersSummary = [],
   } = summary || {};
@@ -155,7 +153,7 @@ export default function IncomesAndLoansPage() {
   function handleSaveWarningLimit(e: React.FormEvent) {
     e.preventDefault();
     updateProfileMutation.mutate({
-      warning_limit: Number(warningInput || warningLimit),
+      loan_warning_limit: Number(warningInput || loanWarningLimit),
     });
   }
 
@@ -170,19 +168,19 @@ export default function IncomesAndLoansPage() {
             Incomes & Loans Tracker
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage salary incomes, freelance earnings, borrowed loans, and financial warning thresholds.
+            Manage salary incomes, freelance earnings, borrowed loans, and loan debt warning thresholds.
           </p>
         </div>
 
-        {/* Soft Warning Alert Banner */}
-        {isWarningTriggered && (
+        {/* Soft Loan Debt Warning Alert Banner */}
+        {isLoanWarningTriggered && (
           <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-4 text-amber-800 dark:text-amber-300 flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
               <AlertTriangle className="size-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
               <div className="space-y-0.5 text-xs">
-                <p className="font-bold text-sm">Warning: Spending Limit Exceeded!</p>
+                <p className="font-bold text-sm">Warning: Borrowed Loan Limit Exceeded!</p>
                 <p>
-                  Combined spending (Personal: Rs. {totalPersonalSpent.toFixed(2)} + Room allocations: Rs. {totalAllocatedToRooms.toFixed(2)}) has passed your warning threshold of Rs. {warningLimit.toFixed(2)}.
+                  Your total active borrowed loan debt (Rs. {totalLoansBorrowed.toFixed(2)}) has passed your configured loan warning limit threshold of Rs. {loanWarningLimit.toFixed(2)}.
                 </p>
               </div>
             </div>
@@ -192,7 +190,7 @@ export default function IncomesAndLoansPage() {
               onClick={() => handleTabChange('settings')}
               className="border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs shrink-0"
             >
-              Adjust Limit Settings
+              Adjust Loan Limit
             </Button>
           </div>
         )}
@@ -394,7 +392,11 @@ export default function IncomesAndLoansPage() {
                         onValueChange={(val) => val && setFinanceType(val as 'income' | 'loan')}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select entry type" />
+                          <SelectValue>
+                            {financeType === 'loan'
+                              ? 'Borrowed Loan (Money from person)'
+                              : 'Personal Income (Salary/Earnings)'}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="income">Personal Income (Salary/Earnings)</SelectItem>
@@ -538,37 +540,37 @@ export default function IncomesAndLoansPage() {
             </div>
           </TabsContent>
 
-          {/* TAB 3: SETTINGS & WARNING LIMIT CONFIG */}
+          {/* TAB 3: SETTINGS & LOAN WARNING LIMIT CONFIG */}
           <TabsContent value="settings" className="space-y-6 max-w-2xl">
             <Card className="border-border bg-card shadow-sm">
               <CardHeader>
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
                   <BadgeAlert className="size-5 text-amber-500" />
-                  Financial Spending Warning Threshold Settings
+                  Loan Debt Warning Limit Settings
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Set a soft warning spending limit. When your combined personal expenses and room balance allocations pass this threshold, visual warning banners will notify you.
+                  Set a soft limit threshold for active borrowed loans. Visual warning alerts trigger when your total active loan debt exceeds this amount.
                 </CardDescription>
               </CardHeader>
               <form onSubmit={handleSaveWarningLimit}>
                 <CardContent className="space-y-4">
                   <div className="space-y-1.5 max-w-md">
-                    <label className="text-xs font-semibold text-foreground">Soft Warning Limit (Rs.)</label>
+                    <label className="text-xs font-semibold text-foreground">Loan Debt Warning Limit (Rs.)</label>
                     <Input
                       type="number"
                       placeholder="e.g. 50000"
-                      value={warningInput || warningLimit}
+                      value={warningInput || loanWarningLimit}
                       onChange={(e) => setWarningInput(e.target.value)}
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      Current threshold: <strong className="text-foreground">Rs. {warningLimit.toLocaleString()}</strong>
+                      Current threshold: <strong className="text-foreground">Rs. {loanWarningLimit.toLocaleString()}</strong>
                     </p>
                   </div>
                 </CardContent>
-                <CardFooter className="border-t border-border/40 pt-3 flex justify-end">
+                <CardFooter className="pt-3 flex justify-end">
                   <Button size="sm" type="submit" disabled={updateProfileMutation.isPending} className="gap-2">
                     <Settings className="size-3.5" />
-                    {updateProfileMutation.isPending ? 'Saving...' : 'Save Warning Settings'}
+                    {updateProfileMutation.isPending ? 'Saving...' : 'Save Loan Warning Settings'}
                   </Button>
                 </CardFooter>
               </form>

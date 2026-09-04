@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS public.users (
   role TEXT DEFAULT 'user',
   total_income NUMERIC(12, 2) DEFAULT 0,
   warning_limit NUMERIC(12, 2) DEFAULT 0,
+  loan_warning_limit NUMERIC(12, 2) DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

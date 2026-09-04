@@ -95,10 +95,20 @@ export function RoomDashboardView({ roomId }: RoomDashboardViewProps) {
 
   if (error || !data) {
     return (
-      <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-6 text-center">
-        <p className="text-sm font-medium text-destructive">
-          Failed to load room dashboard. Please try again.
+      <div className="flex flex-col items-center justify-center py-16 text-center rounded-3xl border border-dashed border-border p-8 bg-card">
+        <div className="flex size-14 items-center justify-center rounded-2xl bg-destructive/10 text-destructive mb-4">
+          <AlertTriangle className="size-7" />
+        </div>
+        <h3 className="text-lg font-bold text-foreground mb-1">Room Not Found</h3>
+        <p className="text-xs sm:text-sm text-muted-foreground max-w-sm mb-6">
+          This room does not exist, has been deleted, or you do not have permission to view its dashboard.
         </p>
+        <Link href="/rooms">
+          <Button className="gap-2 text-xs">
+            <Users className="size-4" />
+            Return to Rooms Workspace
+          </Button>
+        </Link>
       </div>
     );
   }

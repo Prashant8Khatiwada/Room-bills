@@ -6,11 +6,12 @@ export async function getUserPersonalSummary(userId: string) {
   // Fetch user profile stats
   const { data: user } = await supabase
     .from('users')
-    .select('id, name, email, warning_limit')
+    .select('id, name, email, warning_limit, loan_warning_limit')
     .eq('id', userId)
     .single();
 
   const warningLimit = Number(user?.warning_limit || 0);
+  const loanWarningLimit = Number(user?.loan_warning_limit || 0);
 
   // Fetch structured personal incomes & loans
   const { data: personalIncomes } = await supabase
@@ -61,6 +62,9 @@ export async function getUserPersonalSummary(userId: string) {
   const isWarningTriggered =
     warningLimit > 0 && totalPersonalSpent + totalAllocatedToRooms >= warningLimit;
 
+  const isLoanWarningTriggered =
+    loanWarningLimit > 0 && totalLoansBorrowed >= loanWarningLimit;
+
   // Extract loan lenders list
   const lendersSummary: Record<string, number> = {};
   incomesList
@@ -76,10 +80,12 @@ export async function getUserPersonalSummary(userId: string) {
     totalPersonalIncome: Number(totalPersonalIncome.toFixed(2)),
     totalLoansBorrowed: Number(totalLoansBorrowed.toFixed(2)),
     warningLimit: Number(warningLimit.toFixed(2)),
+    loanWarningLimit: Number(loanWarningLimit.toFixed(2)),
     totalPersonalSpent: Number(totalPersonalSpent.toFixed(2)),
     totalAllocatedToRooms: Number(totalAllocatedToRooms.toFixed(2)),
     unallocatedBalance,
     isWarningTriggered,
+    isLoanWarningTriggered,
     personalIncomes: incomesList,
     personalExpenses: personalExpenses || [],
     roomAllocations: memberships || [],
@@ -92,16 +98,27 @@ export async function getUserPersonalSummary(userId: string) {
 
 export async function updateUserProfile(
   userId: string,
-  payload: { warning_limit?: number }
+  payload: { warning_limit?: number; loan_warning_limit?: number; name?: string }
 ) {
   const supabase = await createClient();
 
+  const updateData: Record<string, any> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (payload.warning_limit !== undefined) {
+    updateData.warning_limit = Math.max(0, payload.warning_limit);
+  }
+  if (payload.loan_warning_limit !== undefined) {
+    updateData.loan_warning_limit = Math.max(0, payload.loan_warning_limit);
+  }
+  if (payload.name !== undefined) {
+    updateData.name = payload.name;
+  }
+
   const { data, error } = await supabase
     .from('users')
-    .update({
-      ...(payload.warning_limit !== undefined && { warning_limit: Math.max(0, payload.warning_limit) }),
-      updated_at: new Date().toISOString(),
-    })
+    .update(updateData)
     .eq('id', userId)
     .select()
     .single();
