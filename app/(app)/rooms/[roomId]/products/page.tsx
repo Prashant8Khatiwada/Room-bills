@@ -110,7 +110,7 @@ export default function ProductsPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-[11px] font-semibold uppercase tracking-widest text-primary">
-              Product Catalog
+              Room Catalog
             </span>
             {isOwner && (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-500">
@@ -119,9 +119,9 @@ export default function ProductsPage() {
               </span>
             )}
           </div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">Room Product Catalog</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">Room Item Catalog</h2>
           <p className="text-xs sm:text-sm text-muted-foreground">
-            Save standard items to auto-fill prices when recording room expenses. Items start as drafts until approved by the room owner.
+            Manage reusable catalog items for daily expenses (groceries, vegetables, supplies) and recurring bill templates.
           </p>
         </div>
 
