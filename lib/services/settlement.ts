@@ -76,3 +76,116 @@ export function calculateEqualSplits(
 
   return splits;
 }
+
+export async function getCurrentSettlement(roomId: string, userId: string) {
+  const { assertRoomMember } = await import('./rooms');
+  const { createClient } = await import('@/lib/supabase/server');
+
+  await assertRoomMember(roomId, userId);
+  const supabase = await createClient();
+
+  const { data: openPeriod } = await supabase
+    .from('settlement_periods')
+    .select('*')
+    .eq('room_id', roomId)
+    .eq('status', 'open')
+    .single();
+
+  if (!openPeriod) {
+    return { period: null, balances: [], transactions: [] };
+  }
+
+  const { data: members } = await supabase
+    .from('room_members')
+    .select('user_id, users(id, name, email)')
+    .eq('room_id', roomId);
+
+  const { data: expenses } = await supabase
+    .from('expenses')
+    .select('amount:total_amount, paid_by, expense_splits(*)')
+    .eq('room_id', roomId)
+    .eq('period_id', openPeriod.id);
+
+  const { data: bills } = await supabase
+    .from('bills')
+    .select('amount, paid_by, bill_splits(*)')
+    .eq('room_id', roomId)
+    .eq('period_id', openPeriod.id);
+
+  // Compute net balance per member
+  const memberBalancesMap: Record<string, { paid: number; owed: number; user: any }> = {};
+
+  members?.forEach((m) => {
+    memberBalancesMap[m.user_id] = { paid: 0, owed: 0, user: m.users };
+  });
+
+  expenses?.forEach((e) => {
+    if (memberBalancesMap[e.paid_by]) {
+      memberBalancesMap[e.paid_by].paid += Number(e.amount);
+    }
+    e.expense_splits?.forEach((s: any) => {
+      if (memberBalancesMap[s.user_id]) {
+        memberBalancesMap[s.user_id].owed += Number(s.share);
+      }
+    });
+  });
+
+  bills?.forEach((b) => {
+    if (memberBalancesMap[b.paid_by]) {
+      memberBalancesMap[b.paid_by].paid += Number(b.amount);
+    }
+    b.bill_splits?.forEach((s: any) => {
+      if (memberBalancesMap[s.user_id]) {
+        memberBalancesMap[s.user_id].owed += Number(s.share);
+      }
+    });
+  });
+
+  const balancesList = Object.entries(memberBalancesMap).map(([uId, item]) => {
+    const net = Number((item.paid - item.owed).toFixed(2));
+    return {
+      userId: uId,
+      name: item.user?.name || 'Unknown',
+      email: item.user?.email || '',
+      paid: Number(item.paid.toFixed(2)),
+      owed: Number(item.owed.toFixed(2)),
+      net,
+    };
+  });
+
+  const transactions = simplifyDebts(
+    balancesList.map((b) => ({ userId: b.userId, amount: b.net }))
+  );
+
+  return {
+    period: openPeriod,
+    balances: balancesList,
+    transactions,
+  };
+}
+
+export async function closeSettlementPeriodService(roomId: string, userId: string) {
+  const { assertRoomMember } = await import('./rooms');
+  const { createClient } = await import('@/lib/supabase/server');
+
+  await assertRoomMember(roomId, userId);
+  const supabase = await createClient();
+
+  const { data: member } = await supabase
+    .from('room_members')
+    .select('role')
+    .eq('room_id', roomId)
+    .eq('user_id', userId)
+    .single();
+
+  if (member?.role !== 'owner') {
+    throw new Error('Forbidden: Only room owners can close a settlement period');
+  }
+
+  const { error } = await supabase.rpc('close_settlement_period', { p_room_id: roomId });
+
+  if (error) {
+    throw new Error(`Failed to close settlement period: ${error.message}`);
+  }
+}
+

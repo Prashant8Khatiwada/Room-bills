@@ -36,6 +36,21 @@ export default async function RoomShellLayout({
               </Link>
               <RoomSwitcher />
             </div>
+
+            <nav className="flex space-x-6 text-sm font-medium">
+              <Link href={`/rooms/${roomId}/bills`} className="hover:text-primary transition-colors">
+                Bills
+              </Link>
+              <Link href={`/rooms/${roomId}/expenses`} className="hover:text-primary transition-colors">
+                Expenses
+              </Link>
+              <Link href={`/rooms/${roomId}/products`} className="hover:text-primary transition-colors">
+                Products
+              </Link>
+              <Link href={`/rooms/${roomId}/settlement`} className="hover:text-primary transition-colors">
+                Settlement
+              </Link>
+            </nav>
           </div>
         </header>
 
