@@ -87,22 +87,25 @@ export async function getCurrentSettlement(roomId: string, userId: string) {
   // Fetch room settings
   const { data: room } = await supabase
     .from('rooms')
-    .select('id, name, currency, settlement_frequency, recurring_settlement_day, target_budget, invite_code, join_code')
+    .select('*')
     .eq('id', roomId)
     .single();
 
-  const currency = room?.currency || 'Rs.';
+  const currency = (room as any)?.currency || 'Rs.';
 
   const { data: openPeriod } = await supabase
     .from('settlement_periods')
     .select('*')
     .eq('room_id', roomId)
     .eq('status', 'open')
-    .single();
+    .maybeSingle();
 
   if (!openPeriod) {
     return {
-      room,
+      room: {
+        ...(room || {}),
+        currency,
+      },
       period: null,
       balances: [],
       transactions: [],
@@ -117,12 +120,28 @@ export async function getCurrentSettlement(roomId: string, userId: string) {
     .select('user_id, role, users(id, name, email, avatar_url)')
     .eq('room_id', roomId);
 
-  const { data: bills } = await supabase
-    .from('bills')
-    .select('id, name, amount, category, type, expense_date, paid_by, bill_splits(*), users:paid_by(id, name, email)')
-    .eq('room_id', roomId)
-    .eq('period_id', openPeriod.id)
-    .order('expense_date', { ascending: false });
+  let bills: any[] = [];
+  try {
+    const { data: billsData, error: billsErr } = await supabase
+      .from('bills')
+      .select('*, bill_splits(*), users!paid_by(id, name, email)')
+      .eq('room_id', roomId)
+      .eq('period_id', openPeriod.id)
+      .order('created_at', { ascending: false });
+
+    if (billsErr) {
+      const { data: fallbackBills } = await supabase
+        .from('bills')
+        .select('*, bill_splits(*)')
+        .eq('room_id', roomId)
+        .eq('period_id', openPeriod.id);
+      bills = fallbackBills || [];
+    } else {
+      bills = billsData || [];
+    }
+  } catch {
+    bills = [];
+  }
 
   // Compute net balance per member
   const memberBalancesMap: Record<string, { paid: number; owed: number; user: any; role: string }> = {};
@@ -283,7 +302,7 @@ export async function closeSettlementPeriodService(roomId: string, userId: strin
   // Fetch current room settings for recurring schedule
   const { data: room } = await supabase
     .from('rooms')
-    .select('recurring_settlement_day, settlement_frequency')
+    .select('*')
     .eq('id', roomId)
     .single();
 

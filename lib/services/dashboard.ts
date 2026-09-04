@@ -56,21 +56,22 @@ export async function getRoomDashboardData(
   await assertRoomMember(roomId, userId);
   const supabase = await createClient();
 
-  // 1. Room info
+  // 1. Room info (select * to avoid schema mismatches if optional columns are absent)
   const { data: room, error: roomError } = await supabase
     .from('rooms')
-    .select('id, name, invite_code, currency, min_balance_required, target_budget, created_at')
+    .select('*')
     .eq('id', roomId)
     .single();
 
   if (roomError || !room) {
+    console.error('[Dashboard Service] Room fetch error:', roomError);
     throw new Error('Room not found');
   }
 
   // 2. Members info
   const { data: membersData } = await supabase
     .from('room_members')
-    .select('user_id, role, allocated_balance, users(id, name, email)')
+    .select('*, users(id, name, email)')
     .eq('room_id', roomId);
 
   const members = (membersData || []).map((m: any) => ({
@@ -83,14 +84,38 @@ export async function getRoomDashboardData(
   const totalRoomPool = members.reduce((sum, m) => sum + m.allocatedBalance, 0);
 
   // 3. Bills & Expenses (All recorded in bills table)
-  const { data: bills } = await supabase
-    .from('bills')
-    .select('id, name, amount, category, type, paid_by, created_at, users:paid_by(name, email)')
-    .eq('room_id', roomId)
-    .order('created_at', { ascending: false });
+  let bills: any[] = [];
+  try {
+    const { data: billsData, error: billsErr } = await supabase
+      .from('bills')
+      .select('*, users!paid_by(name, email)')
+      .eq('room_id', roomId)
+      .order('created_at', { ascending: false });
+
+    if (billsErr) {
+      const { data: fallbackBills } = await supabase
+        .from('bills')
+        .select('*')
+        .eq('room_id', roomId)
+        .order('created_at', { ascending: false });
+      bills = fallbackBills || [];
+    } else {
+      bills = billsData || [];
+    }
+  } catch {
+    bills = [];
+  }
 
   // 4. Settlement information
-  const settlementData = await getCurrentSettlement(roomId, userId);
+  let settlementData: any = {
+    balances: [],
+    transactions: [],
+  };
+  try {
+    settlementData = await getCurrentSettlement(roomId, userId);
+  } catch (err) {
+    console.warn('[Dashboard Service] Settlement calculation fallback:', err);
+  }
 
   const rentBills = (bills || []).filter((b) => (b.category || 'rent') === 'rent');
   const expenseBills = (bills || []).filter((b) => b.category === 'expense');
@@ -145,7 +170,7 @@ export async function getRoomDashboardData(
   }).sort((a, b) => b.amount - a.amount);
 
   // User balance from current open settlement period
-  const userBalanceObj = settlementData.balances.find((b: any) => b.userId === userId);
+  const userBalanceObj = (settlementData?.balances || []).find((b: any) => b.userId === userId);
   const userNetBalance = userBalanceObj ? Number(userBalanceObj.net) : 0;
 
   // Build Recent Activity Stream
@@ -153,8 +178,12 @@ export async function getRoomDashboardData(
     id: b.id,
     type: b.category === 'expense' ? 'expense' : 'bill',
     title: b.name || b.type,
-    amount: Number(b.amount),
-    paidByName: b.users?.name || b.users?.email?.split('@')[0] || 'Member',
+    amount: Number(b.amount || 0),
+    paidByName:
+      b.users?.name ||
+      b.users?.email?.split('@')[0] ||
+      members.find((m) => m.userId === b.paid_by)?.name ||
+      'Member',
     date: b.created_at,
     category: b.category,
   }));
@@ -165,10 +194,10 @@ export async function getRoomDashboardData(
     room: {
       id: room.id,
       name: room.name,
-      inviteCode: room.invite_code,
-      currency: room.currency || 'Rs.',
-      minBalanceRequired: Number(room.min_balance_required || 0),
-      targetBudget: Number(room.target_budget || 0),
+      inviteCode: (room as any).invite_code || (room as any).join_code || '',
+      currency: (room as any).currency || 'Rs.',
+      minBalanceRequired: Number((room as any).min_balance_required || 0),
+      targetBudget: Number((room as any).target_budget || 0),
       createdAt: room.created_at,
     },
     stats: {
@@ -184,8 +213,8 @@ export async function getRoomDashboardData(
     categoryBreakdown,
     recentActivity,
     settlementSummary: {
-      transactionsCount: settlementData.transactions.length,
-      settled: settlementData.transactions.length === 0,
+      transactionsCount: settlementData?.transactions?.length || 0,
+      settled: (settlementData?.transactions?.length || 0) === 0,
     },
   };
 }

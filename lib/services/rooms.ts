@@ -116,7 +116,7 @@ export async function joinRoom(
 
   const { data: room } = await supabase
     .from('rooms')
-    .select('id, name, min_balance_required')
+    .select('*')
     .eq('invite_code', inviteCode.toUpperCase())
     .single();
 
@@ -124,7 +124,7 @@ export async function joinRoom(
     throw new Error('Invalid invite code');
   }
 
-  const minRequired = Number(room.min_balance_required || 0);
+  const minRequired = Number((room as any).min_balance_required || 0);
   const allocated = Math.max(0, initialAllocation);
 
   if (minRequired > 0 && allocated < minRequired) {
@@ -166,11 +166,11 @@ export async function allocateRoomBalance(roomId: string, userId: string, newAll
 
   const { data: room } = await supabase
     .from('rooms')
-    .select('min_balance_required')
+    .select('*')
     .eq('id', roomId)
     .single();
 
-  const minRequired = Number(room?.min_balance_required || 0);
+  const minRequired = Number((room as any)?.min_balance_required || 0);
   const targetAllocated = Math.max(0, newAllocation);
 
   if (minRequired > 0 && targetAllocated < minRequired) {

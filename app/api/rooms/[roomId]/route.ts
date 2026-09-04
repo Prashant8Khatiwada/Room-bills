@@ -19,6 +19,13 @@ export async function GET(
     return ok(room);
   } catch (error: any) {
     console.error('[API] GET /api/rooms/:roomId error:', error);
-    return err(error.message || 'Failed to fetch room detail', 400);
+    const msg = error.message || '';
+    if (msg.includes('Unauthorized') || msg.includes('Not a member')) {
+      return err(msg, 403);
+    }
+    if (msg.includes('Room not found')) {
+      return err(msg, 404);
+    }
+    return err(msg || 'Failed to fetch room detail', 400);
   }
 }
