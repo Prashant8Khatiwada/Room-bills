@@ -1,0 +1,14 @@
+allowBuilds:
+  esbuild: set this to true or false
+  unrs-resolver: set this to true or false
+minimumReleaseAgeExclude:
+  - '@base-ui/react@1.8.0'
+  - '@base-ui/utils@0.4.0'
+  - '@supabase/auth-js@2.115.0'
+  - '@supabase/functions-js@2.115.0'
+  - '@supabase/postgrest-js@2.115.0'
+  - '@supabase/realtime-js@2.115.0'
+  - '@supabase/storage-js@2.115.0'
+  - '@supabase/supabase-js@2.115.0'
+  - cn@0.2.5
+  - shadcn@4.21.0
