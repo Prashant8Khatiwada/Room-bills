@@ -27,9 +27,24 @@ function BillsPageContent() {
   const rawTab = searchParams.get('tab');
   const pageTab = rawTab === 'templates' ? 'templates' : rawTab === 'logs' ? 'logs' : 'logged';
 
-  function setPageTab(tab: 'logged' | 'templates' | 'logs') {
+  // Category Tab from searchParams: 'rent' | 'expense'
+  const rawCategory = searchParams.get('category');
+  const categoryTab: 'rent' | 'expense' = rawCategory === 'expense' ? 'expense' : 'rent';
+
+  function setPageTab(tab: 'logged' | 'templates' | 'logs', category?: 'rent' | 'expense') {
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', tab);
+    if (category) {
+      params.set('category', category);
+    } else if (!params.has('category')) {
+      params.set('category', categoryTab);
+    }
+    router.push(`/rooms/${roomId}/bills?${params.toString()}`);
+  }
+
+  function setCategoryTab(category: 'rent' | 'expense') {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('category', category);
     router.push(`/rooms/${roomId}/bills?${params.toString()}`);
   }
 
@@ -47,6 +62,11 @@ function BillsPageContent() {
     curr: '',
     rate: '12',
   });
+
+  // Expense catalog state
+  const [selectedCatalogProduct, setSelectedCatalogProduct] = useState<string>('custom');
+  const [quantity, setQuantity] = useState('1');
+  const [unitPrice, setUnitPrice] = useState('');
 
   // Custom Bill State
   const [customName, setCustomName] = useState('');
@@ -79,8 +99,8 @@ function BillsPageContent() {
   });
 
   const { data: bills, isLoading } = useQuery({
-    queryKey: ['bills', roomId],
-    queryFn: () => apiClient.get<any[]>(api.bill.list(roomId)),
+    queryKey: ['bills', roomId, categoryTab],
+    queryFn: () => apiClient.get<any[]>(`${api.bill.list(roomId)}?category=${categoryTab}`),
   });
 
   const { data: billLogs } = useQuery({
@@ -89,8 +109,13 @@ function BillsPageContent() {
   });
 
   const { data: templates } = useQuery({
-    queryKey: ['bill-templates', roomId],
-    queryFn: () => apiClient.get<any[]>(api.bill.templates(roomId)),
+    queryKey: ['bill-templates', roomId, categoryTab],
+    queryFn: () => apiClient.get<any[]>(`${api.bill.templates(roomId)}?billCategory=${categoryTab}`),
+  });
+
+  const { data: products } = useQuery({
+    queryKey: ['products', roomId],
+    queryFn: () => apiClient.get<any[]>(api.product.list(roomId)),
   });
 
   const { data: members } = useQuery({
@@ -380,12 +405,40 @@ function BillsPageContent() {
   return (
     <div className="space-y-6">
 
+      {/* Category Navigation Bar: Rent vs Expenses */}
+      <div className="flex items-center space-x-1 rounded-2xl bg-muted/60 p-1.5 border border-border/50 max-w-md">
+        <button
+          type="button"
+          onClick={() => setCategoryTab('rent')}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+            categoryTab === 'rent'
+              ? 'bg-background text-primary shadow-xs border border-border/50'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Receipt className="size-4" />
+          <span>Rent & Recurring Bills</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setCategoryTab('expense')}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+            categoryTab === 'expense'
+              ? 'bg-background text-primary shadow-xs border border-border/50'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Layers className="size-4" />
+          <span>Daily Room Expenses</span>
+        </button>
+      </div>
+
       {/* Page Header & View Tab Selector */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 pb-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-[11px] font-semibold uppercase tracking-widest text-primary">
-              Room Finance
+              Room Finance · {categoryTab === 'rent' ? 'Rent & Fixed Costs' : 'Daily Expenses'}
             </span>
             {isOwner && (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-500">
@@ -394,9 +447,13 @@ function BillsPageContent() {
               </span>
             )}
           </div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">Room Bills & Templates</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">
+            {categoryTab === 'rent' ? 'Room Rent & Fixed Bills' : 'Room Daily Expenses'}
+          </h2>
           <p className="text-xs sm:text-sm text-muted-foreground">
-            Log monthly recurring room bills or manage saved bill templates.
+            {categoryTab === 'rent'
+              ? 'Log house rent, electricity, wifi, and recurring bills with automatic split calculations.'
+              : 'Log daily room purchases like groceries, vegetables, and shared supplies with splits.'}
           </p>
         </div>
 

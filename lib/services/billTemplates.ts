@@ -7,7 +7,8 @@ export interface BillTemplateItem {
   room_id: string;
   name: string;
   category: 'fixed' | 'metered';
-  type?: 'rent' | 'electricity' | 'waste' | 'wifi' | 'custom';
+  bill_category?: 'rent' | 'expense';
+  type?: 'rent' | 'electricity' | 'waste' | 'wifi' | 'expense' | 'custom';
   default_amount: number;
   rate_per_unit?: number;
   status: 'draft' | 'approved';
@@ -16,27 +17,35 @@ export interface BillTemplateItem {
 
 // Default room bill templates if none saved yet
 const DEFAULT_ROOM_TEMPLATES: Omit<BillTemplateItem, 'id' | 'room_id'>[] = [
-  { name: 'House Rent', category: 'fixed', type: 'rent', default_amount: 15000, status: 'approved' },
-  { name: 'WiFi / Internet', category: 'fixed', type: 'wifi', default_amount: 1200, status: 'approved' },
-  { name: 'Waste Collection', category: 'fixed', type: 'waste', default_amount: 300, status: 'approved' },
-  { name: 'Electricity Meter', category: 'metered', type: 'electricity', default_amount: 0, rate_per_unit: 12, status: 'approved' },
+  { name: 'House Rent', category: 'fixed', bill_category: 'rent', type: 'rent', default_amount: 15000, status: 'approved' },
+  { name: 'WiFi / Internet', category: 'fixed', bill_category: 'rent', type: 'wifi', default_amount: 1200, status: 'approved' },
+  { name: 'Waste Collection', category: 'fixed', bill_category: 'rent', type: 'waste', default_amount: 300, status: 'approved' },
+  { name: 'Electricity Meter', category: 'metered', bill_category: 'rent', type: 'electricity', default_amount: 0, rate_per_unit: 12, status: 'approved' },
+  { name: 'Groceries', category: 'fixed', bill_category: 'expense', type: 'expense', default_amount: 0, status: 'approved' },
+  { name: 'Vegetables', category: 'fixed', bill_category: 'expense', type: 'expense', default_amount: 0, status: 'approved' },
 ];
 
-export async function listBillTemplates(roomId: string, userId: string): Promise<BillTemplateItem[]> {
+export async function listBillTemplates(roomId: string, userId: string, billCategory?: 'rent' | 'expense'): Promise<BillTemplateItem[]> {
   await assertRoomMember(roomId, userId);
   const supabase = await createClient();
 
   try {
-    const { data: existingTemplates, error } = await supabase
+    let query = supabase
       .from('bill_templates')
       .select('*')
-      .eq('room_id', roomId)
-      .order('created_at', { ascending: true });
+      .eq('room_id', roomId);
+
+    if (billCategory) {
+      query = query.eq('bill_category', billCategory);
+    }
+
+    const { data: existingTemplates, error } = await query.order('created_at', { ascending: true });
 
     if (!error && existingTemplates && existingTemplates.length > 0) {
       return existingTemplates.map((t) => ({
         ...t,
         category: t.category || (t.type === 'electricity' || t.rate_per_unit ? 'metered' : 'fixed'),
+        bill_category: t.bill_category || 'rent',
       }));
     }
 
@@ -45,6 +54,7 @@ export async function listBillTemplates(roomId: string, userId: string): Promise
       room_id: roomId,
       name: t.name,
       category: t.category,
+      bill_category: t.bill_category || 'rent',
       type: t.type,
       default_amount: t.default_amount,
       rate_per_unit: t.rate_per_unit,
@@ -58,20 +68,24 @@ export async function listBillTemplates(roomId: string, userId: string): Promise
       .select();
 
     if (!seedError && seeded && seeded.length > 0) {
-      return seeded.map((t) => ({
+      const filtered = billCategory ? seeded.filter((t) => (t.bill_category || 'rent') === billCategory) : seeded;
+      return filtered.map((t) => ({
         ...t,
         category: t.category || (t.type === 'electricity' || t.rate_per_unit ? 'metered' : 'fixed'),
+        bill_category: t.bill_category || 'rent',
       }));
     }
 
     // Fallback if DB table insert unavailable
-    return DEFAULT_ROOM_TEMPLATES.map((t, idx) => ({
+    const fallbackList = DEFAULT_ROOM_TEMPLATES.filter((t) => !billCategory || (t.bill_category || 'rent') === billCategory);
+    return fallbackList.map((t, idx) => ({
       id: `seeded-${idx}-${Date.now()}`,
       room_id: roomId,
       ...t,
     }));
   } catch {
-    return DEFAULT_ROOM_TEMPLATES.map((t, idx) => ({
+    const fallbackList = DEFAULT_ROOM_TEMPLATES.filter((t) => !billCategory || (t.bill_category || 'rent') === billCategory);
+    return fallbackList.map((t, idx) => ({
       id: `seeded-${idx}-${Date.now()}`,
       room_id: roomId,
       ...t,
@@ -82,7 +96,7 @@ export async function listBillTemplates(roomId: string, userId: string): Promise
 export async function createBillTemplate(
   roomId: string,
   userId: string,
-  payload: { name: string; category: 'fixed' | 'metered'; defaultAmount?: number; ratePerUnit?: number; type?: string }
+  payload: { name: string; category: 'fixed' | 'metered'; billCategory?: 'rent' | 'expense'; defaultAmount?: number; ratePerUnit?: number; type?: string }
 ): Promise<BillTemplateItem> {
   await assertRoomMember(roomId, userId);
   const supabase = await createClient();
@@ -92,6 +106,7 @@ export async function createBillTemplate(
     room_id: roomId,
     name: payload.name.trim(),
     category: payload.category,
+    bill_category: payload.billCategory || 'rent',
     type: payload.type || (isMetered ? 'electricity' : 'custom'),
     default_amount: isMetered ? 0 : Number(payload.defaultAmount || 0),
     rate_per_unit: isMetered ? Number(payload.ratePerUnit || 12) : undefined,

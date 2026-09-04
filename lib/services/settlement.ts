@@ -100,12 +100,6 @@ export async function getCurrentSettlement(roomId: string, userId: string) {
     .select('user_id, users(id, name, email)')
     .eq('room_id', roomId);
 
-  const { data: expenses } = await supabase
-    .from('expenses')
-    .select('amount:total_amount, paid_by, expense_splits(*)')
-    .eq('room_id', roomId)
-    .eq('period_id', openPeriod.id);
-
   const { data: bills } = await supabase
     .from('bills')
     .select('amount, paid_by, bill_splits(*)')
@@ -117,17 +111,6 @@ export async function getCurrentSettlement(roomId: string, userId: string) {
 
   members?.forEach((m) => {
     memberBalancesMap[m.user_id] = { paid: 0, owed: 0, user: m.users };
-  });
-
-  expenses?.forEach((e) => {
-    if (memberBalancesMap[e.paid_by]) {
-      memberBalancesMap[e.paid_by].paid += Number(e.amount);
-    }
-    e.expense_splits?.forEach((s: any) => {
-      if (memberBalancesMap[s.user_id]) {
-        memberBalancesMap[s.user_id].owed += Number(s.share);
-      }
-    });
   });
 
   bills?.forEach((b) => {

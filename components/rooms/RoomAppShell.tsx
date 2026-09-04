@@ -23,8 +23,7 @@ import { useState } from 'react';
 
 const sidebarNavItems = (roomId: string) => [
   { href: `/rooms/${roomId}/dashboard`,  label: 'Dashboard',  icon: LayoutDashboard, section: 'room' },
-  { href: `/rooms/${roomId}/bills`,      label: 'Bills',      icon: Receipt,         section: 'room' },
-  { href: `/rooms/${roomId}/expenses`,   label: 'Expenses',   icon: Wallet,          section: 'room' },
+  { href: `/rooms/${roomId}/bills`,      label: 'Bills & Expenses', icon: Receipt,   section: 'room' },
   { href: `/rooms/${roomId}/products`,   label: 'Products',   icon: Package,         section: 'room' },
   { href: `/rooms/${roomId}/settlement`, label: 'Settlement', icon: Scale,           section: 'room' },
 ];
@@ -32,7 +31,6 @@ const sidebarNavItems = (roomId: string) => [
 const bottomNavItems = (roomId: string) => [
   { href: `/rooms/${roomId}/dashboard`,  label: 'Dashboard',  icon: LayoutDashboard },
   { href: `/rooms/${roomId}/bills`,      label: 'Bills',      icon: Receipt },
-  { href: `/rooms/${roomId}/expenses`,   label: 'Expenses',   icon: Wallet },
   { href: `/rooms/${roomId}/products`,   label: 'Products',   icon: Package },
 ];
 

@@ -22,11 +22,6 @@ export const api = {
     create: (roomId: string) => `/api/rooms/${roomId}/bills`,
     templates: (roomId: string) => `/api/rooms/${roomId}/bill-templates`,
   },
-  expense: {
-    list: (roomId: string) => `/api/rooms/${roomId}/expenses`,
-    create: (roomId: string) => `/api/rooms/${roomId}/expenses`,
-    delete: (roomId: string, id: string) => `/api/rooms/${roomId}/expenses/${id}`,
-  },
   settlement: {
     current: (roomId: string) => `/api/rooms/${roomId}/settlement`,
     close: (roomId: string) => `/api/rooms/${roomId}/settlement/close`,

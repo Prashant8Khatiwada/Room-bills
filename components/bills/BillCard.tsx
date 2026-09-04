@@ -10,9 +10,12 @@ export interface BillCardProps {
   id?: string;
   name?: string;
   type: string;
+  category?: 'rent' | 'expense';
   amount: number;
   month: string;
   paidByName: string;
+  quantity?: number;
+  unitPrice?: number;
   prevUnit?: number;
   currentUnit?: number;
   ratePerUnit?: number;
@@ -26,9 +29,12 @@ export function BillCard({
   id,
   name,
   type,
+  category,
   amount,
   month,
   paidByName,
+  quantity,
+  unitPrice,
   prevUnit,
   currentUnit,
   ratePerUnit,
@@ -71,7 +77,12 @@ export function BillCard({
           </div>
         </CardHeader>
         <CardContent className="text-xs space-y-2 text-muted-foreground pt-0">
-          <div className="text-[11px]">Month: <span className="font-semibold text-foreground">{month}</span></div>
+          <div className="text-[11px]">Date / Month: <span className="font-semibold text-foreground">{month}</span></div>
+          {quantity !== undefined && unitPrice !== undefined && (
+            <div className="text-[11px] font-mono bg-primary/10 border border-primary/20 text-primary rounded-md px-2 py-1 inline-block">
+              {quantity} pcs @ NPR {unitPrice}/pc
+            </div>
+          )}
           {type === 'electricity' && prevUnit !== undefined && currentUnit !== undefined && (
             <div className="text-[11px] font-mono bg-sky-500/10 border border-sky-500/20 text-sky-600 rounded-md px-2 py-1 inline-block">
               Units: {prevUnit} → {currentUnit} (@ NPR {ratePerUnit}/unit)

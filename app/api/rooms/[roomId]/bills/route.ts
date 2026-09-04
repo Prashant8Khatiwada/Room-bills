@@ -5,9 +5,10 @@ import { moneyAmount } from '@/lib/validations';
 import { ok, err } from '@/lib/apiHelpers';
 
 const electricitySchema = z.object({
+  category: z.literal('rent').optional().default('rent'),
   type: z.literal('electricity'),
   name: z.string().optional(),
-  month: z.string(),
+  month: z.string().optional(),
   prev_unit: z.number().nonnegative(),
   current_unit: z.number().nonnegative(),
   rate_per_unit: z.number().positive(),
@@ -16,18 +17,35 @@ const electricitySchema = z.object({
   custom_splits: z.record(z.string().uuid(), z.number().nonnegative()).optional(),
 });
 
-const otherBillSchema = z.object({
-  type: z.enum(['rent', 'waste', 'wifi']),
+const otherRentBillSchema = z.object({
+  category: z.literal('rent').optional().default('rent'),
+  type: z.enum(['rent', 'waste', 'wifi', 'custom']),
   name: z.string().optional(),
-  month: z.string(),
+  month: z.string().optional(),
   amount: moneyAmount,
   paid_by: z.string().uuid(),
   split_among: z.array(z.string().uuid()).optional(),
   custom_splits: z.record(z.string().uuid(), z.number().nonnegative()).optional(),
 });
 
-const createBillSchema = z.union([electricitySchema, otherBillSchema]).superRefine((data, ctx) => {
-  if (data.type === 'electricity' && data.current_unit < data.prev_unit) {
+const expenseBillSchema = z.object({
+  category: z.literal('expense'),
+  type: z.string().optional().default('expense'),
+  name: z.string().min(1, 'Item name is required'),
+  is_fixed: z.boolean().optional(),
+  product_id: z.string().uuid().optional().nullable(),
+  quantity: z.number().positive().optional(),
+  unit_price: moneyAmount.optional(),
+  amount: moneyAmount.optional(),
+  paid_by: z.string().uuid(),
+  expense_date: z.string().optional(),
+  month: z.string().optional(),
+  split_among: z.array(z.string().uuid()).optional(),
+  custom_splits: z.record(z.string().uuid(), z.number().nonnegative()).optional(),
+});
+
+const createBillSchema = z.union([electricitySchema, otherRentBillSchema, expenseBillSchema]).superRefine((data, ctx) => {
+  if (data.type === 'electricity' && 'current_unit' in data && 'prev_unit' in data && data.current_unit < data.prev_unit) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'Current unit must be ≥ previous unit',
@@ -44,6 +62,7 @@ export async function GET(
     const { roomId } = await params;
     const { searchParams } = new URL(request.url);
     const periodId = searchParams.get('periodId') || undefined;
+    const category = (searchParams.get('category') as 'rent' | 'expense') || undefined;
     const isLogs = searchParams.get('logs') === 'true';
 
     const supabase = await createClient();
@@ -58,7 +77,7 @@ export async function GET(
       return ok(logs);
     }
 
-    const bills = await listBills(roomId, session.user.id, periodId);
+    const bills = await listBills(roomId, session.user.id, periodId, category);
     return ok(bills);
   } catch (error: any) {
     console.error('[API] GET /api/rooms/:roomId/bills error:', error);

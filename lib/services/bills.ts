@@ -4,20 +4,26 @@ import { calculateEqualSplits } from './settlement';
 import { recordAuditLog, listAuditLogs } from './auditLogs';
 
 export interface CreateBillInput {
-  type: 'rent' | 'electricity' | 'waste' | 'wifi';
+  category?: 'rent' | 'expense';
+  type: 'rent' | 'electricity' | 'waste' | 'wifi' | 'expense' | string;
   name?: string;
-  month: string;
+  month?: string;
   amount?: number;
   prev_unit?: number;
   current_unit?: number;
   rate_per_unit?: number;
+  quantity?: number;
+  unit_price?: number;
+  expense_date?: string;
+  product_id?: string | null;
+  is_fixed?: boolean;
   paid_by: string;
   split_among?: string[]; // Custom member IDs to split among (or custom shares map)
   custom_splits?: Record<string, number>; // Explicit share per user ID
   idempotency_key?: string;
 }
 
-export async function listBills(roomId: string, userId: string, periodId?: string) {
+export async function listBills(roomId: string, userId: string, periodId?: string, category?: 'rent' | 'expense') {
   await assertRoomMember(roomId, userId);
   const supabase = await createClient();
 
@@ -36,12 +42,17 @@ export async function listBills(roomId: string, userId: string, periodId?: strin
 
   if (!targetPeriodId) return [];
 
-  const { data: bills } = await supabase
+  let query = supabase
     .from('bills')
     .select('*, paid_by_user:users!paid_by(id, name, email), bill_splits(*)')
     .eq('room_id', roomId)
-    .eq('period_id', targetPeriodId)
-    .order('created_at', { ascending: false });
+    .eq('period_id', targetPeriodId);
+
+  if (category) {
+    query = query.eq('category', category);
+  }
+
+  const { data: bills } = await query.order('created_at', { ascending: false });
 
   return bills || [];
 }
@@ -74,10 +85,40 @@ export async function createBill(roomId: string, userId: string, data: CreateBil
     throw new Error('No open settlement period found for this room');
   }
 
+  const category = data.category || 'rent';
   let finalAmount = data.amount || 0;
 
-  // Server-side calculation for electricity
-  if (data.type === 'electricity') {
+  // Handle Product catalog for fixed expenses if category is expense
+  let finalProductId = data.product_id;
+  if (category === 'expense' && data.is_fixed && data.name && !finalProductId) {
+    const itemName = data.name.trim();
+    const { data: existingProduct } = await supabase
+      .from('products')
+      .select('id')
+      .eq('room_id', roomId)
+      .ilike('name', itemName)
+      .single();
+
+    if (existingProduct) {
+      finalProductId = existingProduct.id;
+    } else {
+      const { data: newProduct } = await supabase
+        .from('products')
+        .insert({
+          room_id: roomId,
+          name: itemName,
+          default_price: data.unit_price || data.amount || 0,
+        })
+        .select()
+        .single();
+
+      finalProductId = newProduct?.id;
+    }
+  }
+
+  if (category === 'expense' && data.quantity && data.unit_price) {
+    finalAmount = Number((data.quantity * data.unit_price).toFixed(2));
+  } else if (data.type === 'electricity') {
     if (data.prev_unit === undefined || data.current_unit === undefined || !data.rate_per_unit) {
       throw new Error('Electricity bill requires prev_unit, current_unit, and rate_per_unit');
     }
@@ -87,16 +128,24 @@ export async function createBill(roomId: string, userId: string, data: CreateBil
     finalAmount = Number(((data.current_unit - data.prev_unit) * data.rate_per_unit).toFixed(2));
   }
 
+  const billMonth = data.month || (data.expense_date ? data.expense_date.substring(0, 7) : new Date().toISOString().substring(0, 7));
+
   const { data: bill, error: billError } = await supabase
     .from('bills')
     .insert({
       room_id: roomId,
       period_id: openPeriod.id,
+      category,
       type: data.type,
-      month: data.month,
+      name: data.name,
+      month: billMonth,
       prev_unit: data.prev_unit,
       current_unit: data.current_unit,
       rate_per_unit: data.rate_per_unit,
+      quantity: data.quantity,
+      unit_price: data.unit_price,
+      expense_date: data.expense_date,
+      product_id: finalProductId || null,
       amount: finalAmount,
       paid_by: data.paid_by,
       idempotency_key: data.idempotency_key,

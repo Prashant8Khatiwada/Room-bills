@@ -8,6 +8,9 @@ export async function GET(
 ) {
   try {
     const { roomId } = await params;
+    const { searchParams } = new URL(request.url);
+    const billCategory = (searchParams.get('billCategory') as 'rent' | 'expense') || undefined;
+
     const supabase = await createClient();
     const { data: { session } } = await supabase.auth.getSession();
 
@@ -15,7 +18,7 @@ export async function GET(
       return err('Unauthorized', 401);
     }
 
-    const templates = await listBillTemplates(roomId, session.user.id);
+    const templates = await listBillTemplates(roomId, session.user.id, billCategory);
     return ok(templates);
   } catch (error: any) {
     console.error('[API] GET /api/rooms/:roomId/bill-templates error:', error);
@@ -44,6 +47,7 @@ export async function POST(
     const newTemplate = await createBillTemplate(roomId, session.user.id, {
       name: body.name,
       category: body.category === 'metered' ? 'metered' : 'fixed',
+      billCategory: body.billCategory === 'expense' ? 'expense' : 'rent',
       defaultAmount: body.defaultAmount ? Number(body.defaultAmount) : 0,
       ratePerUnit: body.ratePerUnit ? Number(body.ratePerUnit) : undefined,
     });

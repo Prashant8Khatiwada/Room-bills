@@ -74,46 +74,29 @@ export async function getRoomDashboardData(
     email: m.users?.email || '',
   }));
 
-  // 3. Expenses
-  const { data: expenses } = await supabase
-    .from('expenses')
-    .select('id, description, total_amount, category, paid_by, created_at, users:paid_by(name, email)')
-    .eq('room_id', roomId)
-    .order('created_at', { ascending: false });
-
-  // 4. Bills
+  // 3. Bills & Expenses (All recorded in bills table)
   const { data: bills } = await supabase
     .from('bills')
-    .select('id, name, amount, paid_by, status, created_at, users:paid_by(name, email)')
+    .select('id, name, amount, category, type, paid_by, created_at, users:paid_by(name, email)')
     .eq('room_id', roomId)
     .order('created_at', { ascending: false });
 
-  // 5. Settlement information
+  // 4. Settlement information
   const settlementData = await getCurrentSettlement(roomId, userId);
 
-  // Compute totals
-  const totalExpensesAmount = (expenses || []).reduce(
-    (sum, e) => sum + Number(e.total_amount || 0),
-    0
-  );
-  const totalExpensesCount = expenses?.length || 0;
+  const rentBills = (bills || []).filter((b) => (b.category || 'rent') === 'rent');
+  const expenseBills = (bills || []).filter((b) => b.category === 'expense');
 
-  const totalBillsAmount = (bills || []).reduce(
-    (sum, b) => sum + Number(b.amount || 0),
-    0
-  );
-  const totalBillsCount = bills?.length || 0;
+  const totalBillsAmount = rentBills.reduce((sum, b) => sum + Number(b.amount || 0), 0);
+  const totalBillsCount = rentBills.length;
 
-  // Calculate member contributions (total paid by member across expenses and bills)
+  const totalExpensesAmount = expenseBills.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+  const totalExpensesCount = expenseBills.length;
+
+  // Calculate member contributions (total paid by member across all bills)
   const paidMap: Record<string, number> = {};
   members.forEach((m) => {
     paidMap[m.userId] = 0;
-  });
-
-  (expenses || []).forEach((e) => {
-    if (paidMap[e.paid_by] !== undefined) {
-      paidMap[e.paid_by] += Number(e.total_amount || 0);
-    }
   });
 
   (bills || []).forEach((b) => {
@@ -136,15 +119,15 @@ export async function getRoomDashboardData(
     };
   });
 
-  // Calculate category breakdown for expenses
+  // Calculate category breakdown
   const categoryMap: Record<string, number> = {};
-  (expenses || []).forEach((e) => {
-    const cat = e.category || 'General';
-    categoryMap[cat] = (categoryMap[cat] || 0) + Number(e.total_amount || 0);
+  (bills || []).forEach((b) => {
+    const catName = b.name || b.type || (b.category === 'expense' ? 'Groceries' : 'Rent');
+    categoryMap[catName] = (categoryMap[catName] || 0) + Number(b.amount || 0);
   });
 
   const categoryBreakdown = Object.entries(categoryMap).map(([category, amount]) => {
-    const percentage = totalExpensesAmount > 0 ? (amount / totalExpensesAmount) * 100 : 0;
+    const percentage = combinedTotalPaid > 0 ? (amount / combinedTotalPaid) * 100 : 0;
     return {
       category,
       amount: Number(amount.toFixed(2)),
@@ -157,33 +140,16 @@ export async function getRoomDashboardData(
   const userNetBalance = userBalanceObj ? Number(userBalanceObj.net) : 0;
 
   // Build Recent Activity Stream
-  const activityList: RoomDashboardData['recentActivity'] = [];
+  const activityList: RoomDashboardData['recentActivity'] = (bills || []).slice(0, 10).map((b: any) => ({
+    id: b.id,
+    type: b.category === 'expense' ? 'expense' : 'bill',
+    title: b.name || b.type,
+    amount: Number(b.amount),
+    paidByName: b.users?.name || b.users?.email?.split('@')[0] || 'Member',
+    date: b.created_at,
+    category: b.category,
+  }));
 
-  (expenses || []).slice(0, 5).forEach((e: any) => {
-    activityList.push({
-      id: e.id,
-      type: 'expense',
-      title: e.description,
-      amount: Number(e.total_amount),
-      paidByName: e.users?.name || e.users?.email?.split('@')[0] || 'Member',
-      date: e.created_at,
-      category: e.category,
-    });
-  });
-
-  (bills || []).slice(0, 5).forEach((b: any) => {
-    activityList.push({
-      id: b.id,
-      type: 'bill',
-      title: b.name,
-      amount: Number(b.amount),
-      paidByName: b.users?.name || b.users?.email?.split('@')[0] || 'Member',
-      date: b.created_at,
-    });
-  });
-
-  // Sort activity list by date descending
-  activityList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   const recentActivity = activityList.slice(0, 6);
 
   return {
