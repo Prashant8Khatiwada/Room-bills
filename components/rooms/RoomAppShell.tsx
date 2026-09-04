@@ -29,7 +29,6 @@ const sidebarNavItems = (roomId: string) => [
   { href: `/rooms/${roomId}/catalog`,    label: 'Room Catalog',     icon: Package,         section: 'room' },
   { href: `/rooms/${roomId}/logs`,       label: 'Audit Logs',       icon: History,         section: 'room' },
   { href: `/rooms/${roomId}/settlement`, label: 'Settlement',       icon: Scale,           section: 'room' },
-  { href: `/rooms/${roomId}/settings`,   label: 'Room Settings',    icon: Settings,        section: 'room' },
 ];
 
 const bottomNavItems = (roomId: string) => [
