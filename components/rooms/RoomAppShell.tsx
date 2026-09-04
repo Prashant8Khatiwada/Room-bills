@@ -91,14 +91,13 @@ export function RoomAppShell({
   const SidebarContent = () => (
     <div className="flex h-full flex-col">
       {/* Logo / Branding */}
-      <div className="flex h-12 items-center justify-between border-b border-border px-4">
+      <div className="flex h-12 items-center border-b border-border px-4">
         <div className="flex items-center gap-2">
           <div className="flex size-6 items-center justify-center rounded-md bg-primary text-[11px] font-bold text-primary-foreground">
             R
           </div>
           <span className="text-[13px] font-semibold tracking-tight text-foreground">Room Tracker</span>
         </div>
-        <ThemeToggle />
       </div>
 
       <div className="flex flex-1 flex-col gap-0 overflow-y-auto p-2 pt-3">
@@ -219,10 +218,19 @@ export function RoomAppShell({
 
           {/* Right side actions */}
           <div className="flex items-center gap-2">
-            <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[12px] font-medium text-muted-foreground">
+            <span className="hidden sm:inline text-[12px] font-medium text-muted-foreground">
               {userName}
-            </div>
+            </span>
             <ThemeToggle />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              className="size-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              title="Logout"
+            >
+              <LogOut className="size-3.5" />
+            </Button>
           </div>
         </header>
 

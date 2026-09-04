@@ -4,112 +4,186 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Pastel Chalk Ledger — adapted for Room Tracker.
+ * All colors are oklch tokens. Never hardcode colors in components.
+ */
+
 @theme inline {
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
-  --color-ring: hsl(var(--ring));
-  --color-input: hsl(var(--input));
-  --color-border: hsl(var(--border));
-  --color-destructive: hsl(var(--danger));
-  --color-destructive-foreground: hsl(var(--danger-foreground));
-  --color-success: hsl(var(--success));
-  --color-success-foreground: hsl(var(--success-foreground));
-  --color-danger: hsl(var(--danger));
-  --color-danger-foreground: hsl(var(--danger-foreground));
-  --color-warning: hsl(var(--warning));
-  --color-accent-foreground: hsl(var(--accent-foreground));
-  --color-accent: hsl(var(--accent));
-  --color-muted-foreground: hsl(var(--muted-foreground));
-  --color-muted: hsl(var(--muted));
-  --color-primary-foreground: hsl(var(--primary-foreground));
-  --color-primary: hsl(var(--primary));
-  --color-card-foreground: hsl(var(--card-foreground));
-  --color-card: hsl(var(--card));
-  --color-popover: hsl(var(--popover));
-  --color-popover-foreground: hsl(var(--popover-foreground));
-  --radius-lg: var(--radius);
+  --radius-sm:  calc(var(--radius) - 8px);
+  --radius-md:  calc(var(--radius) - 4px);
+  --radius-lg:  var(--radius);
+  --radius-xl:  calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 10px);
+  --radius-3xl: calc(var(--radius) + 14px);
+  --radius-4xl: calc(var(--radius) + 20px);
+
+  --font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    var(--font-jetbrains-mono), ui-monospace, monospace;
+  --font-sans:    var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+
+  /* Color tokens → mapped to CSS vars */
+  --color-background:           var(--background);
+  --color-foreground:           var(--foreground);
+  --color-surface:              var(--surface);
+  --color-card:                 var(--card);
+  --color-card-foreground:      var(--card-foreground);
+  --color-popover:              var(--popover);
+  --color-popover-foreground:   var(--popover-foreground);
+  --color-primary:              var(--primary);
+  --color-primary-foreground:   var(--primary-foreground);
+  --color-secondary:            var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted:                var(--muted);
+  --color-muted-foreground:     var(--muted-foreground);
+  --color-accent:               var(--accent);
+  --color-accent-foreground:    var(--accent-foreground);
+  --color-accent-ink:           var(--accent-ink);
+  --color-destructive:          var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-danger:               var(--destructive);
+  --color-danger-foreground:    var(--destructive-foreground);
+  --color-success:              var(--success);
+  --color-success-foreground:   var(--success-foreground);
+  --color-warning:              var(--warning);
+  --color-border:               var(--border);
+  --color-stroke:               var(--stroke);
+  --color-input:                var(--input);
+  --color-ring:                 var(--ring);
+  --color-ink:                  var(--ink);
+  --color-mint:                 var(--mint);
+  --color-peach:                var(--peach);
+  --color-butter:               var(--butter);
+  --color-lilac:                var(--lilac);
+
+  --shadow-accent: 0 18px 30px -18px var(--accent-shadow);
+  --shadow-fab:    0 12px 22px -8px  var(--accent-shadow);
 }
 
-/* ─── Light Mode — Clean, crisp, like Linear's light theme ─────────── */
+/* ─── Light Mode ─────────────────────────────────────────────────────── */
 :root {
-  /* Primary: Linear's signature blue-violet */
-  --primary: 250 89% 60%;           /* #5E6AD2 — Linear blue */
-  --primary-foreground: 0 0% 100%;
+  --radius: 0.75rem;
 
-  /* Accent: subtle teal for highlights */
-  --accent: 215 25% 93%;            /* soft slate */
-  --accent-foreground: 222 30% 20%;
+  --background:    oklch(0.977 0.005 85);
+  --foreground:    oklch(0.235 0.008 250);
+  --surface:       oklch(1 0 0);
+  --ink:           oklch(0.235 0.008 250);
+
+  --card:            oklch(1 0 0);
+  --card-foreground: oklch(0.235 0.008 250);
+  --popover:         oklch(1 0 0);
+  --popover-foreground: oklch(0.235 0.008 250);
+
+  /* Primary: warm coral-orange from original Chalk Ledger */
+  --primary:          oklch(0.712 0.164 35);
+  --primary-foreground: oklch(1 0 0);
+
+  /* Accent = primary (used for active states, highlights) */
+  --accent:            oklch(0.955 0.010 85);
+  --accent-foreground: oklch(0.235 0.008 250);
+  --accent-ink:        oklch(0.633 0.163 40);
+  --accent-shadow:     oklch(0.712 0.164 35 / 0.45);
+
+  --secondary:            oklch(0.940 0.008 85);
+  --secondary-foreground: oklch(0.235 0.008 250);
+  --muted:            oklch(0.940 0.008 85);
+  --muted-foreground: oklch(0.580 0.012 250);
 
   /* Semantic */
-  --success: 142 71% 35%;
-  --success-foreground: 0 0% 100%;
-  --danger: 3 87% 60%;
-  --danger-foreground: 0 0% 100%;
-  --warning: 36 92% 50%;
+  --success:            oklch(0.620 0.155 160);
+  --success-foreground: oklch(1 0 0);
+  --destructive:        oklch(0.577 0.211 25);
+  --destructive-foreground: oklch(1 0 0);
+  --warning:            oklch(0.750 0.160 75);
 
-  /* Neutrals — very clean like Vercel/Linear */
-  --background: 0 0% 100%;
-  --foreground: 222 22% 11%;
+  /* Pastels */
+  --mint:   oklch(0.925 0.043 165);
+  --peach:  oklch(0.933 0.035 40);
+  --butter: oklch(0.943 0.062 95);
+  --lilac:  oklch(0.910 0.033 290);
 
-  --card: 0 0% 100%;
-  --card-foreground: 222 22% 11%;
-
-  --popover: 0 0% 100%;
-  --popover-foreground: 222 22% 11%;
-
-  --muted: 210 20% 96%;
-  --muted-foreground: 215 15% 50%;
-
-  --border: 214 20% 89%;
-  --input: 214 20% 89%;
-  --ring: 250 89% 60%;
-  --radius: 0.5rem;
+  --stroke: oklch(0.905 0.010 250);
+  --border: oklch(0.905 0.010 250);
+  --input:  oklch(0.905 0.010 250);
+  --ring:   oklch(0.712 0.164 35);
 }
 
-/* ─── Dark Mode — Rich, deep, exactly like Linear's dark app shell ──── */
+/* ─── Dark Mode ──────────────────────────────────────────────────────── */
 .dark {
-  /* Background layers — deep neutral, not blue-black */
-  --background: 220 13% 9%;         /* #141517 — true dark like Linear */
-  --foreground: 220 14% 93%;        /* near-white text */
+  --radius: 0.75rem;
 
-  --card: 220 13% 12%;              /* slightly lighter panel */
-  --card-foreground: 220 14% 93%;
+  --background:    oklch(0.175 0.010 250);
+  --foreground:    oklch(0.940 0.008 250);
+  --surface:       oklch(0.210 0.012 250);
+  --ink:           oklch(0.940 0.008 250);
 
-  --popover: 220 13% 12%;
-  --popover-foreground: 220 14% 93%;
+  --card:            oklch(0.210 0.012 250);
+  --card-foreground: oklch(0.940 0.008 250);
+  --popover:         oklch(0.210 0.012 250);
+  --popover-foreground: oklch(0.940 0.008 250);
 
-  --muted: 220 11% 17%;             /* subtle bg for inputs, pills */
-  --muted-foreground: 220 9% 55%;   /* dimmed labels */
+  /* Primary stays vibrant in dark */
+  --primary:          oklch(0.740 0.164 35);
+  --primary-foreground: oklch(1 0 0);
 
-  --border: 220 11% 22%;            /* barely-there separator */
-  --input: 220 11% 20%;
-  --ring: 250 89% 65%;
+  --accent:            oklch(0.240 0.012 250);
+  --accent-foreground: oklch(0.940 0.008 250);
+  --accent-ink:        oklch(0.760 0.148 35);
+  --accent-shadow:     oklch(0.712 0.164 35 / 0.40);
 
-  /* Primary in dark: Linear's vibrant purple-blue */
-  --primary: 250 89% 65%;           /* #6971E0 */
-  --primary-foreground: 0 0% 100%;
-
-  /* Accent: active nav items background */
-  --accent: 220 11% 18%;
-  --accent-foreground: 220 14% 93%;
+  --secondary:            oklch(0.255 0.013 250);
+  --secondary-foreground: oklch(0.940 0.008 250);
+  --muted:            oklch(0.255 0.013 250);
+  --muted-foreground: oklch(0.580 0.015 250);
 
   /* Semantic */
-  --success: 142 69% 42%;
-  --success-foreground: 0 0% 100%;
-  --danger: 3 87% 62%;
-  --danger-foreground: 0 0% 100%;
-  --warning: 36 92% 50%;
+  --success:            oklch(0.650 0.155 160);
+  --success-foreground: oklch(1 0 0);
+  --destructive:        oklch(0.620 0.211 25);
+  --destructive-foreground: oklch(1 0 0);
+  --warning:            oklch(0.780 0.160 75);
+
+  /* Pastels */
+  --mint:   oklch(0.350 0.060 165);
+  --peach:  oklch(0.350 0.050 35);
+  --butter: oklch(0.370 0.065 95);
+  --lilac:  oklch(0.350 0.045 290);
+
+  --stroke: oklch(0.290 0.013 250);
+  --border: oklch(0.290 0.013 250);
+  --input:  oklch(0.280 0.013 250);
+  --ring:   oklch(0.740 0.164 35);
 }
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: var(--color-border);
   }
+
   body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-display);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
+}
+
+/* ─── Animations ─────────────────────────────────────────────────────── */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@utility animate-rise {
+  animation: rise 400ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+/* ─── Typography utilities ───────────────────────────────────────────── */
+@utility label-mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--color-muted-foreground);
 }
