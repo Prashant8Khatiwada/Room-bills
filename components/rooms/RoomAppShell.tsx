@@ -33,7 +33,7 @@ const bottomNavItems = (roomId: string) => [
   { href: `/rooms/${roomId}/dashboard`,  label: 'Dashboard',  icon: LayoutDashboard },
   { href: `/rooms/${roomId}/bills`,      label: 'Bills',      icon: Receipt },
   { href: `/rooms/${roomId}/expenses`,   label: 'Expenses',   icon: Wallet },
-  { href: `/rooms/${roomId}/settlement`, label: 'Settle',     icon: Scale },
+  { href: `/rooms/${roomId}/products`,   label: 'Products',   icon: Package },
 ];
 
 function NavItem({
