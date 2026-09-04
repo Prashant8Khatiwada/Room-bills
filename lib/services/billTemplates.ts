@@ -5,7 +5,8 @@ export interface BillTemplateItem {
   id: string;
   room_id: string;
   name: string;
-  type: 'rent' | 'electricity' | 'waste' | 'wifi' | 'custom';
+  category: 'fixed' | 'metered';
+  type?: 'rent' | 'electricity' | 'waste' | 'wifi' | 'custom';
   default_amount: number;
   rate_per_unit?: number;
   status: 'draft' | 'approved';
@@ -14,10 +15,10 @@ export interface BillTemplateItem {
 
 // Default room bill templates if none saved yet
 const DEFAULT_ROOM_TEMPLATES: Omit<BillTemplateItem, 'id' | 'room_id'>[] = [
-  { name: 'House Rent', type: 'rent', default_amount: 15000, status: 'approved' },
-  { name: 'WiFi / Internet', type: 'wifi', default_amount: 1200, status: 'approved' },
-  { name: 'Waste Collection', type: 'waste', default_amount: 300, status: 'approved' },
-  { name: 'Electricity Meter', type: 'electricity', default_amount: 0, rate_per_unit: 12, status: 'approved' },
+  { name: 'House Rent', category: 'fixed', type: 'rent', default_amount: 15000, status: 'approved' },
+  { name: 'WiFi / Internet', category: 'fixed', type: 'wifi', default_amount: 1200, status: 'approved' },
+  { name: 'Waste Collection', category: 'fixed', type: 'waste', default_amount: 300, status: 'approved' },
+  { name: 'Electricity Meter', category: 'metered', type: 'electricity', default_amount: 0, rate_per_unit: 12, status: 'approved' },
 ];
 
 export async function listBillTemplates(roomId: string, userId: string): Promise<BillTemplateItem[]> {
@@ -25,25 +26,52 @@ export async function listBillTemplates(roomId: string, userId: string): Promise
   const supabase = await createClient();
 
   try {
-    const { data: customTemplates, error } = await supabase
+    const { data: existingTemplates, error } = await supabase
       .from('bill_templates')
       .select('*')
       .eq('room_id', roomId)
-      .order('name', { ascending: true });
+      .order('created_at', { ascending: true });
 
-    if (error || !customTemplates || customTemplates.length === 0) {
-      // Return default bill templates + any saved
-      return DEFAULT_ROOM_TEMPLATES.map((t, idx) => ({
-        id: `default-${idx}`,
-        room_id: roomId,
+    if (!error && existingTemplates && existingTemplates.length > 0) {
+      return existingTemplates.map((t) => ({
         ...t,
+        category: t.category || (t.type === 'electricity' || t.rate_per_unit ? 'metered' : 'fixed'),
       }));
     }
 
-    return customTemplates;
+    // Seed default room templates into DB if none exist yet
+    const seedPayloads = DEFAULT_ROOM_TEMPLATES.map((t) => ({
+      room_id: roomId,
+      name: t.name,
+      category: t.category,
+      type: t.type,
+      default_amount: t.default_amount,
+      rate_per_unit: t.rate_per_unit,
+      status: 'approved',
+      created_by: userId,
+    }));
+
+    const { data: seeded, error: seedError } = await supabase
+      .from('bill_templates')
+      .insert(seedPayloads)
+      .select();
+
+    if (!seedError && seeded && seeded.length > 0) {
+      return seeded.map((t) => ({
+        ...t,
+        category: t.category || (t.type === 'electricity' || t.rate_per_unit ? 'metered' : 'fixed'),
+      }));
+    }
+
+    // Fallback if DB table insert unavailable
+    return DEFAULT_ROOM_TEMPLATES.map((t, idx) => ({
+      id: `seeded-${idx}-${Date.now()}`,
+      room_id: roomId,
+      ...t,
+    }));
   } catch {
     return DEFAULT_ROOM_TEMPLATES.map((t, idx) => ({
-      id: `default-${idx}`,
+      id: `seeded-${idx}-${Date.now()}`,
       room_id: roomId,
       ...t,
     }));
@@ -53,17 +81,19 @@ export async function listBillTemplates(roomId: string, userId: string): Promise
 export async function createBillTemplate(
   roomId: string,
   userId: string,
-  payload: { name: string; type: BillTemplateItem['type']; defaultAmount: number; ratePerUnit?: number }
+  payload: { name: string; category: 'fixed' | 'metered'; defaultAmount?: number; ratePerUnit?: number; type?: string }
 ): Promise<BillTemplateItem> {
   await assertRoomMember(roomId, userId);
   const supabase = await createClient();
 
+  const isMetered = payload.category === 'metered';
   const templateData = {
     room_id: roomId,
     name: payload.name.trim(),
-    type: payload.type || 'custom',
-    default_amount: payload.defaultAmount,
-    rate_per_unit: payload.ratePerUnit,
+    category: payload.category,
+    type: payload.type || (isMetered ? 'electricity' : 'custom'),
+    default_amount: isMetered ? 0 : Number(payload.defaultAmount || 0),
+    rate_per_unit: isMetered ? Number(payload.ratePerUnit || 12) : undefined,
     status: 'draft',
     created_by: userId,
   };
@@ -83,6 +113,43 @@ export async function createBillTemplate(
     return newTemplate;
   } catch {
     return { id: `custom-${Date.now()}`, ...templateData } as BillTemplateItem;
+  }
+}
+
+export async function updateBillTemplate(
+  roomId: string,
+  templateId: string,
+  userId: string,
+  payload: { name?: string; category?: 'fixed' | 'metered'; defaultAmount?: number; ratePerUnit?: number }
+): Promise<BillTemplateItem> {
+  await assertRoomMember(roomId, userId);
+  const supabase = await createClient();
+
+  const isMetered = payload.category === 'metered';
+  const updateData: any = {};
+  if (payload.name) updateData.name = payload.name.trim();
+  if (payload.category) updateData.category = payload.category;
+  if (payload.category) updateData.type = isMetered ? 'electricity' : 'custom';
+  if (payload.defaultAmount !== undefined) updateData.default_amount = isMetered ? 0 : Number(payload.defaultAmount);
+  if (payload.ratePerUnit !== undefined) updateData.rate_per_unit = isMetered ? Number(payload.ratePerUnit) : undefined;
+
+  try {
+    const { data: updated, error } = await supabase
+      .from('bill_templates')
+      .update(updateData)
+      .eq('id', templateId)
+      .eq('room_id', roomId)
+      .select()
+      .single();
+
+    if (error) {
+      console.warn('[BillTemplates] update error:', error.message);
+      return { id: templateId, room_id: roomId, name: payload.name || '', category: payload.category || 'fixed', default_amount: payload.defaultAmount || 0, status: 'approved' };
+    }
+
+    return updated;
+  } catch {
+    return { id: templateId, room_id: roomId, name: payload.name || '', category: payload.category || 'fixed', default_amount: payload.defaultAmount || 0, status: 'approved' };
   }
 }
 
@@ -110,9 +177,9 @@ export async function approveBillTemplate(roomId: string, templateId: string, us
       .select()
       .single();
 
-    return updated || { id: templateId, room_id: roomId, name: '', type: 'custom', default_amount: 0, status: 'approved' };
+    return updated || { id: templateId, room_id: roomId, name: '', category: 'fixed', type: 'custom', default_amount: 0, status: 'approved' };
   } catch {
-    return { id: templateId, room_id: roomId, name: '', type: 'custom', default_amount: 0, status: 'approved' };
+    return { id: templateId, room_id: roomId, name: '', category: 'fixed', type: 'custom', default_amount: 0, status: 'approved' };
   }
 }
 
@@ -128,7 +195,6 @@ export async function deleteBillTemplate(roomId: string, templateId: string, use
     .single();
 
   if (member?.role !== 'owner' && !templateId.startsWith('custom-')) {
-    // Check if draft
     const { data: template } = await supabase
       .from('bill_templates')
       .select('status')

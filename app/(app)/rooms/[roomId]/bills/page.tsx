@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Lock, Plus, Receipt, Check, FileText, Clock, Trash2, ChevronDown, X, Layers, Zap, ShieldCheck } from 'lucide-react';
+import { Lock, Plus, Receipt, Check, FileText, Clock, Trash2, ChevronDown, X, Layers, Zap, ShieldCheck, Pencil } from 'lucide-react';
 
 function BillsPageContent() {
   const { roomId, userRole } = useCurrentRoom();
@@ -53,8 +53,16 @@ function BillsPageContent() {
 
   // Bill Template Form State
   const [newTemplateName, setNewTemplateName] = useState('');
+  const [newTemplateCategory, setNewTemplateCategory] = useState<'fixed' | 'metered'>('fixed');
   const [newTemplateAmount, setNewTemplateAmount] = useState('');
-  const [newTemplateType, setNewTemplateType] = useState<'rent' | 'electricity' | 'waste' | 'wifi' | 'custom'>('custom');
+  const [newTemplateRate, setNewTemplateRate] = useState('12');
+
+  // Edit Template Dialog State
+  const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editCategory, setEditCategory] = useState<'fixed' | 'metered'>('fixed');
+  const [editAmount, setEditAmount] = useState('');
+  const [editRate, setEditRate] = useState('12');
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -124,19 +132,22 @@ function BillsPageContent() {
     return approvedTemplates.filter((t) => selectedTemplates[t.id]);
   }, [approvedTemplates, selectedTemplates]);
 
-  // Check if electricity is selected in multi-select
-  const isElectricitySelected = useMemo(() => {
-    return selectedTemplateItems.some((t) => t.type === 'electricity');
+  // Check if any metered bill (e.g. Electricity, Water) is selected in multi-select
+  const meteredSelectedItems = useMemo(() => {
+    return selectedTemplateItems.filter((t) => t.category === 'metered' || t.type === 'electricity' || t.rate_per_unit);
   }, [selectedTemplateItems]);
+
+  const isMeteredSelected = meteredSelectedItems.length > 0;
 
   // Live dynamic total calculation for multi-selected saved bills
   const dynamicTotal = useMemo(() => {
     let sum = 0;
     selectedTemplateItems.forEach((t) => {
-      if (t.type === 'electricity') {
+      const isMetered = t.category === 'metered' || t.type === 'electricity' || t.rate_per_unit;
+      if (isMetered) {
         const prev = Number(electricityUnits.prev) || 0;
         const curr = Number(electricityUnits.curr) || 0;
-        const rate = Number(electricityUnits.rate) || 12;
+        const rate = Number(t.rate_per_unit) || 12; // Rate is locked from template!
         if (curr >= prev && prev > 0) {
           sum += (curr - prev) * rate;
         }
@@ -164,6 +175,7 @@ function BillsPageContent() {
       queryClient.invalidateQueries({ queryKey: ['bill-templates', roomId] });
       setNewTemplateName('');
       setNewTemplateAmount('');
+      setNewTemplateRate('12');
     },
   });
 
@@ -180,6 +192,35 @@ function BillsPageContent() {
       queryClient.invalidateQueries({ queryKey: ['bill-templates', roomId] });
     },
   });
+
+  const updateTemplateMutation = useMutation({
+    mutationFn: (data: any) => apiClient.put(api.bill.templates(roomId), data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bill-templates', roomId] });
+      setEditingTemplate(null);
+    },
+  });
+
+  function openEditModal(t: any) {
+    setEditingTemplate(t);
+    setEditName(t.name);
+    const cat = t.category || (t.type === 'electricity' || t.rate_per_unit ? 'metered' : 'fixed');
+    setEditCategory(cat);
+    setEditAmount(t.default_amount ? String(t.default_amount) : '');
+    setEditRate(t.rate_per_unit ? String(t.rate_per_unit) : '12');
+  }
+
+  function handleSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingTemplate || !editName) return;
+    updateTemplateMutation.mutate({
+      templateId: editingTemplate.id,
+      name: editName,
+      category: editCategory,
+      defaultAmount: editCategory === 'fixed' ? Number(editAmount) : 0,
+      ratePerUnit: editCategory === 'metered' ? Number(editRate) : undefined,
+    });
+  }
 
   function resetForm() {
     setSelectedTemplates({});
@@ -201,10 +242,11 @@ function BillsPageContent() {
     if (!paidBy || selectedTemplateItems.length === 0) return;
 
     for (const t of selectedTemplateItems) {
-      if (t.type === 'electricity') {
+      const isMetered = t.category === 'metered' || t.type === 'electricity' || t.rate_per_unit;
+      if (isMetered) {
         const prev = Number(electricityUnits.prev) || 0;
         const curr = Number(electricityUnits.curr) || 0;
-        const rate = Number(electricityUnits.rate) || 12;
+        const rate = Number(t.rate_per_unit) || 12; // Rate locked from template!
         await apiClient.post(api.bill.create(roomId), {
           type: 'electricity',
           name: t.name,
@@ -247,12 +289,23 @@ function BillsPageContent() {
 
   function handleProposeTemplate(e: React.FormEvent) {
     e.preventDefault();
-    if (!newTemplateName || !newTemplateAmount) return;
-    createTemplateMutation.mutate({
-      name: newTemplateName,
-      type: newTemplateType,
-      defaultAmount: Number(newTemplateAmount),
-    });
+    if (!newTemplateName) return;
+
+    if (newTemplateCategory === 'fixed') {
+      if (!newTemplateAmount) return;
+      createTemplateMutation.mutate({
+        name: newTemplateName,
+        category: 'fixed',
+        defaultAmount: Number(newTemplateAmount),
+      });
+    } else {
+      if (!newTemplateRate) return;
+      createTemplateMutation.mutate({
+        name: newTemplateName,
+        category: 'metered',
+        ratePerUnit: Number(newTemplateRate),
+      });
+    }
   }
 
   return (
@@ -395,6 +448,7 @@ function BillsPageContent() {
                           ) : (
                             approvedTemplates.map((t) => {
                               const isChecked = !!selectedTemplates[t.id];
+                              const isMetered = t.category === 'metered' || t.type === 'electricity' || t.rate_per_unit;
                               return (
                                 <div
                                   key={t.id}
@@ -408,7 +462,7 @@ function BillsPageContent() {
                                     <span>{t.name}</span>
                                   </div>
                                   <span className="font-mono text-[11px] font-bold">
-                                    {t.type === 'electricity' ? 'Meter Rate' : `NPR ${t.default_amount.toLocaleString()}`}
+                                    {isMetered ? `NPR ${t.rate_per_unit || 12}/unit` : `NPR ${t.default_amount?.toLocaleString() || 0}`}
                                   </span>
                                 </div>
                               );
@@ -418,53 +472,60 @@ function BillsPageContent() {
                       )}
                     </div>
 
-                    {/* Electricity Meter Inputs */}
-                    {isElectricitySelected && (
-                      <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-3 space-y-2">
-                        <p className="text-xs font-bold text-sky-600 flex items-center gap-1">
-                          <Zap className="size-3.5" />
-                          Electricity Meter Readings
-                        </p>
-                        <div className="grid grid-cols-3 gap-2 text-xs">
-                          <div>
-                            <label className="text-[10px] font-medium text-muted-foreground">Prev Unit</label>
-                            <Input
-                              type="number"
-                              placeholder="1000"
-                              value={electricityUnits.prev}
-                              onChange={(e) =>
-                                setElectricityUnits((prev) => ({ ...prev, prev: e.target.value }))
-                              }
-                              required
-                              className="h-8 text-xs"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-medium text-muted-foreground">Curr Unit</label>
-                            <Input
-                              type="number"
-                              placeholder="1120"
-                              value={electricityUnits.curr}
-                              onChange={(e) =>
-                                setElectricityUnits((prev) => ({ ...prev, curr: e.target.value }))
-                              }
-                              required
-                              className="h-8 text-xs"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-medium text-muted-foreground">Rate/Unit</label>
-                            <Input
-                              type="number"
-                              value={electricityUnits.rate}
-                              onChange={(e) =>
-                                setElectricityUnits((prev) => ({ ...prev, rate: e.target.value }))
-                              }
-                              required
-                              className="h-8 text-xs"
-                            />
-                          </div>
-                        </div>
+                    {/* Metered Readings Inputs for Per-Unit Bills */}
+                    {isMeteredSelected && (
+                      <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-3 space-y-3">
+                        {meteredSelectedItems.map((t) => {
+                          const rate = t.rate_per_unit || 12;
+                          return (
+                            <div key={t.id} className="space-y-1.5">
+                              <p className="text-xs font-bold text-sky-600 flex items-center justify-between">
+                                <span className="flex items-center gap-1">
+                                  <Zap className="size-3.5" />
+                                  {t.name} Meter Readings
+                                </span>
+                                <span className="text-[10px] font-medium text-sky-500/80">
+                                  Template Rate Locked
+                                </span>
+                              </p>
+                              <div className="grid grid-cols-3 gap-2 text-xs">
+                                <div>
+                                  <label className="text-[10px] font-medium text-muted-foreground">Prev Unit</label>
+                                  <Input
+                                    type="number"
+                                    placeholder="1000"
+                                    value={electricityUnits.prev}
+                                    onChange={(e) =>
+                                      setElectricityUnits((prev) => ({ ...prev, prev: e.target.value }))
+                                    }
+                                    required
+                                    className="h-8 text-xs"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-medium text-muted-foreground">Curr Unit</label>
+                                  <Input
+                                    type="number"
+                                    placeholder="1120"
+                                    value={electricityUnits.curr}
+                                    onChange={(e) =>
+                                      setElectricityUnits((prev) => ({ ...prev, curr: e.target.value }))
+                                    }
+                                    required
+                                    className="h-8 text-xs"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-medium text-muted-foreground">Rate/Unit (Locked)</label>
+                                  <div className="flex h-8 w-full items-center justify-between rounded-md border border-border bg-muted/60 px-2.5 font-mono text-xs font-semibold text-foreground">
+                                    <span>NPR {rate}</span>
+                                    <Lock className="size-3 text-muted-foreground/70" />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
 
@@ -637,16 +698,16 @@ function BillsPageContent() {
                 Propose New Room Bill Template
               </CardTitle>
               <CardDescription className="text-xs">
-                Save recurring bills (e.g. Maid, Water, Internet) to make them selectable in the Multi-Select Payment Dropdown.
+                Save recurring bills (e.g. Electricity, Water, Rent) to make them selectable in the Multi-Select Payment Dropdown.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleProposeTemplate} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="text-xs font-semibold text-foreground block mb-1.5">Template Name</label>
+                    <label className="text-xs font-semibold text-foreground block mb-1.5">Template Title</label>
                     <Input
-                      placeholder="e.g. Maid / House Cleaning"
+                      placeholder="e.g. Electricity Meter, Maid, Rent"
                       value={newTemplateName}
                       onChange={(e) => setNewTemplateName(e.target.value)}
                       required
@@ -655,32 +716,45 @@ function BillsPageContent() {
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-foreground block mb-1.5">Default Amount (NPR)</label>
-                    <Input
-                      type="number"
-                      placeholder="e.g. 3000"
-                      value={newTemplateAmount}
-                      onChange={(e) => setNewTemplateAmount(e.target.value)}
-                      required
-                      className="h-9 text-xs"
-                    />
-                  </div>
-
-                  <div>
                     <label className="text-xs font-semibold text-foreground block mb-1.5">Bill Type Category</label>
-                    <Select value={newTemplateType} onValueChange={(val: any) => setNewTemplateType(val)}>
+                    <Select value={newTemplateCategory} onValueChange={(val: any) => setNewTemplateCategory(val)}>
                       <SelectTrigger className="h-9 text-xs">
-                        <SelectValue />
+                        <SelectValue placeholder="Select category">
+                          {newTemplateCategory === 'fixed' ? 'Fixed Amount' : 'Metered / Per Unit'}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="rent" className="text-xs">House Rent</SelectItem>
-                        <SelectItem value="wifi" className="text-xs">WiFi Internet</SelectItem>
-                        <SelectItem value="waste" className="text-xs">Waste Collection</SelectItem>
-                        <SelectItem value="electricity" className="text-xs">Electricity Meter</SelectItem>
-                        <SelectItem value="custom" className="text-xs">General / Custom</SelectItem>
+                        <SelectItem value="fixed" className="text-xs">Fixed Amount (Rent, Internet, Maid)</SelectItem>
+                        <SelectItem value="metered" className="text-xs">Metered / Per Unit (Electricity, Water)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {newTemplateCategory === 'fixed' ? (
+                    <div>
+                      <label className="text-xs font-semibold text-foreground block mb-1.5">Default Amount (NPR)</label>
+                      <Input
+                        type="number"
+                        placeholder="e.g. 15000"
+                        value={newTemplateAmount}
+                        onChange={(e) => setNewTemplateAmount(e.target.value)}
+                        required
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="text-xs font-semibold text-foreground block mb-1.5">Rate Per Unit (NPR)</label>
+                      <Input
+                        type="number"
+                        placeholder="e.g. 12"
+                        value={newTemplateRate}
+                        onChange={(e) => setNewTemplateRate(e.target.value)}
+                        required
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end">
@@ -706,39 +780,47 @@ function BillsPageContent() {
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {draftTemplates.map((t) => (
-                  <div
-                    key={t.id}
-                    className="flex items-center justify-between rounded-xl border border-amber-500/20 bg-background/90 p-3.5 shadow-xs"
-                  >
-                    <div>
-                      <h4 className="font-bold text-sm text-foreground">{t.name}</h4>
-                      <p className="font-mono text-xs font-semibold text-primary mt-0.5">
-                        NPR {t.default_amount.toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {isOwner && (
+                {draftTemplates.map((t) => {
+                  const isMetered = t.category === 'metered' || t.type === 'electricity' || t.rate_per_unit;
+                  return (
+                    <div
+                      key={t.id}
+                      className="flex items-center justify-between rounded-xl border border-amber-500/20 bg-background/90 p-3.5 shadow-xs"
+                    >
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="font-bold text-sm text-foreground">{t.name}</h4>
+                          <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
+                            {isMetered ? 'Metered' : 'Fixed'}
+                          </span>
+                        </div>
+                        <p className="font-mono text-xs font-semibold text-primary mt-0.5">
+                          {isMetered ? `NPR ${t.rate_per_unit || 12}/unit` : `NPR ${t.default_amount?.toLocaleString() || 0}`}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {isOwner && (
+                          <Button
+                            size="sm"
+                            onClick={() => approveTemplateMutation.mutate(t.id)}
+                            className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 font-semibold"
+                          >
+                            <Check className="size-3.5 mr-1" /> Approve
+                          </Button>
+                        )}
                         <Button
-                          size="sm"
-                          onClick={() => approveTemplateMutation.mutate(t.id)}
-                          className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 font-semibold"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteTemplateMutation.mutate(t.id)}
+                          className="size-7 text-muted-foreground hover:text-destructive"
+                          title="Delete proposal"
                         >
-                          <Check className="size-3.5 mr-1" /> Approve
+                          <Trash2 className="size-3.5" />
                         </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteTemplateMutation.mutate(t.id)}
-                        className="size-7 text-muted-foreground hover:text-destructive"
-                        title="Delete proposal"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -751,33 +833,127 @@ function BillsPageContent() {
             </h3>
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {approvedTemplates.map((t) => (
-                <div
-                  key={t.id}
-                  className="flex items-center justify-between rounded-2xl border border-border/60 bg-card p-4 shadow-sm"
-                >
-                  <div>
-                    <h4 className="font-bold text-sm text-foreground">{t.name}</h4>
-                    <p className="font-mono text-xs font-semibold text-primary mt-0.5">
-                      {t.type === 'electricity' ? 'Per Meter Unit Rate' : `NPR ${t.default_amount.toLocaleString()}`}
-                    </p>
-                  </div>
+              {approvedTemplates.map((t) => {
+                const isMetered = t.category === 'metered' || t.type === 'electricity' || t.rate_per_unit;
+                return (
+                  <div
+                    key={t.id}
+                    className="flex items-center justify-between rounded-2xl border border-border/60 bg-card p-4 shadow-sm"
+                  >
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="font-bold text-sm text-foreground">{t.name}</h4>
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                          isMetered ? 'bg-sky-500/10 text-sky-600 border border-sky-500/20' : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {isMetered ? 'Metered' : 'Fixed'}
+                        </span>
+                      </div>
+                      <p className="font-mono text-xs font-semibold text-primary mt-1">
+                        {isMetered ? `NPR ${t.rate_per_unit || 12} / unit` : `NPR ${t.default_amount?.toLocaleString() || 0}`}
+                      </p>
+                    </div>
 
-                  {isOwner && !t.id.startsWith('default-') && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => deleteTemplateMutation.mutate(t.id)}
-                      className="size-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                      title="Delete template"
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
+                    <div className="flex items-center gap-1">
+                      {isOwner && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEditModal(t)}
+                            className="size-8 text-muted-foreground hover:text-foreground hover:bg-accent"
+                            title="Edit template"
+                          >
+                            <Pencil className="size-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => deleteTemplateMutation.mutate(t.id)}
+                            className="size-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            title="Delete template"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
+
+          {/* Edit Template Modal Dialog */}
+          <Dialog open={!!editingTemplate} onOpenChange={(val) => !val && setEditingTemplate(null)}>
+            <DialogContent className="max-w-md p-6">
+              <DialogHeader>
+                <DialogTitle className="text-lg font-bold">Edit Room Bill Template</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSaveEdit} className="space-y-4 pt-2">
+                <div>
+                  <label className="text-xs font-semibold text-foreground block mb-1.5">Template Title</label>
+                  <Input
+                    placeholder="e.g. House Rent, Electricity Meter"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    required
+                    className="h-9 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-foreground block mb-1.5">Bill Type Category</label>
+                  <Select value={editCategory} onValueChange={(val: any) => setEditCategory(val)}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Select category">
+                        {editCategory === 'fixed' ? 'Fixed Amount' : 'Metered / Per Unit'}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fixed" className="text-xs">Fixed Amount (Rent, Internet, Maid)</SelectItem>
+                      <SelectItem value="metered" className="text-xs">Metered / Per Unit (Electricity, Water)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {editCategory === 'fixed' ? (
+                  <div>
+                    <label className="text-xs font-semibold text-foreground block mb-1.5">Default Amount (NPR)</label>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 15000"
+                      value={editAmount}
+                      onChange={(e) => setEditAmount(e.target.value)}
+                      required
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-xs font-semibold text-foreground block mb-1.5">Rate Per Unit (NPR)</label>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 12"
+                      value={editRate}
+                      onChange={(e) => setEditRate(e.target.value)}
+                      required
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button type="button" variant="outline" onClick={() => setEditingTemplate(null)} className="h-9 text-xs font-semibold">
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={updateTemplateMutation.isPending} className="h-9 text-xs font-bold px-5">
+                    {updateTemplateMutation.isPending ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
 
         </div>
       )}
