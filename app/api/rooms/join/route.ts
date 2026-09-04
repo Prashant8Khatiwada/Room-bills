@@ -10,6 +10,13 @@ const joinRoomSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
+    const { rateLimit } = await import('@/lib/rateLimit');
+
+    if (!rateLimit(ip, 10, 60_000)) {
+      return err('Too many room join attempts. Please try again later.', 429);
+    }
+
     const supabase = await createClient();
     const { data: { session } } = await supabase.auth.getSession();
 

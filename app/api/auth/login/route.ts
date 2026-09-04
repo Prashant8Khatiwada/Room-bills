@@ -9,6 +9,13 @@ const loginSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
+    const { rateLimit } = await import('@/lib/rateLimit');
+
+    if (!rateLimit(ip, 5, 60_000)) {
+      return err('Too many login attempts. Please try again later.', 429);
+    }
+
     const body = await request.json();
     const result = loginSchema.safeParse(body);
 
