@@ -6,6 +6,7 @@ import { useCurrentRoom } from '@/components/rooms/CurrentRoomProvider';
 import { apiClient } from '@/lib/apiClient';
 import { api } from '@/lib/apiEndpoints';
 
+import { ExpenseCard } from '@/components/expenses/ExpenseCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -275,30 +276,17 @@ export default function ExpensesPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {expenses?.map((e) => (
-            <Card key={e.id}>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <div>
-                  <CardTitle className="text-lg font-bold text-foreground">{e.item_name}</CardTitle>
-                  <span className="text-xs text-muted-foreground">
-                    {e.expense_date} · Qty: {e.quantity} @ NPR {e.unit_price}
-                  </span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-base font-bold text-primary">NPR {e.total_amount}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-danger hover:bg-danger/10"
-                    onClick={() => deleteMutation.mutate(e.id)}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="text-xs text-muted-foreground">
-                <div>Paid By: {e.paid_by_user?.name || 'Member'}</div>
-              </CardContent>
-            </Card>
+            <ExpenseCard
+              key={e.id}
+              id={e.id}
+              itemName={e.item_name}
+              expenseDate={e.expense_date}
+              quantity={e.quantity}
+              unitPrice={e.unit_price}
+              totalAmount={e.total_amount}
+              paidByName={e.paid_by_user?.name || 'Member'}
+              onDelete={(id) => deleteMutation.mutate(id)}
+            />
           ))}
         </div>
       )}

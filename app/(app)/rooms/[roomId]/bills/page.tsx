@@ -6,6 +6,7 @@ import { useCurrentRoom } from '@/components/rooms/CurrentRoomProvider';
 import { apiClient } from '@/lib/apiClient';
 import { api } from '@/lib/apiEndpoints';
 
+import { BillCard } from '@/components/bills/BillCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -212,21 +213,16 @@ export default function BillsPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {bills?.map((b) => (
-            <Card key={b.id}>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-lg capitalize font-bold text-foreground">{b.type}</CardTitle>
-                <span className="text-sm font-bold text-primary">NPR {b.amount}</span>
-              </CardHeader>
-              <CardContent className="text-xs space-y-1 text-muted-foreground">
-                <div>Month: {b.month}</div>
-                <div>Paid By: {b.paid_by_user?.name || 'Member'}</div>
-                {b.type === 'electricity' && (
-                  <div>
-                    Units: {b.prev_unit} → {b.current_unit} (@ NPR {b.rate_per_unit}/unit)
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <BillCard
+              key={b.id}
+              type={b.type}
+              amount={b.amount}
+              month={b.month}
+              paidByName={b.paid_by_user?.name || 'Member'}
+              prevUnit={b.prev_unit}
+              currentUnit={b.current_unit}
+              ratePerUnit={b.rate_per_unit}
+            />
           ))}
         </div>
       )}

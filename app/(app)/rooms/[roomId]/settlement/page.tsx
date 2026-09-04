@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCurrentRoom } from '@/components/rooms/CurrentRoomProvider';
 import { apiClient } from '@/lib/apiClient';
 import { api } from '@/lib/apiEndpoints';
-
+import { MemberBalanceCard } from '@/components/settlement/MemberBalanceCard';
+import { SettlementTransactionCard } from '@/components/settlement/SettlementTransactionCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -91,27 +92,16 @@ export default function SettlementPage() {
       <div className="space-y-4">
         <h3 className="text-lg font-bold text-foreground">Member Balances</h3>
         <div className="grid gap-4 md:grid-cols-3">
-          {balances?.map((b: any) => {
-            const isOwed = b.net >= 0;
-            return (
-              <Card key={b.userId} className="border-border">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-bold text-foreground">{b.name}</CardTitle>
-                  <CardDescription className="text-xs">{b.email}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-1 text-xs">
-                  <div>Total Paid: NPR {b.paid}</div>
-                  <div>Total Share Owed: NPR {b.owed}</div>
-                  <div className="pt-2 text-sm font-bold">
-                    Net Balance:{' '}
-                    <span className={isOwed ? 'text-success' : 'text-danger'}>
-                      {isOwed ? `+NPR ${b.net} (is owed)` : `-NPR ${Math.abs(b.net)} (owes)`}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+          {balances?.map((b: any) => (
+            <MemberBalanceCard
+              key={b.userId}
+              name={b.name}
+              email={b.email}
+              paid={b.paid}
+              owed={b.owed}
+              net={b.net}
+            />
+          ))}
         </div>
       </div>
 
@@ -128,13 +118,12 @@ export default function SettlementPage() {
               const creditorName = balances?.find((b: any) => b.userId === t.to)?.name || 'Member';
 
               return (
-                <Card key={idx} className="p-4 flex items-center justify-between border-border">
-                  <div className="text-sm font-medium">
-                    <span className="font-bold text-danger">{debtorName}</span> pays{' '}
-                    <span className="font-bold text-success">{creditorName}</span>
-                  </div>
-                  <div className="text-base font-bold text-primary">NPR {t.amount}</div>
-                </Card>
+                <SettlementTransactionCard
+                  key={idx}
+                  debtorName={debtorName}
+                  creditorName={creditorName}
+                  amount={t.amount}
+                />
               );
             })}
           </div>

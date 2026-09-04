@@ -5,6 +5,7 @@ import { useCurrentRoom } from '@/components/rooms/CurrentRoomProvider';
 import { apiClient } from '@/lib/apiClient';
 import { api } from '@/lib/apiEndpoints';
 
+import { ProductCard } from '@/components/products/ProductCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -65,23 +66,14 @@ export default function ProductsPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {products?.map((p) => (
-            <Card key={p.id}>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-base font-bold text-foreground">{p.name}</CardTitle>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-danger hover:bg-danger/10"
-                  onClick={() => deleteMutation.mutate(p.id)}
-                >
-                  Delete
-                </Button>
-              </CardHeader>
-              <CardContent className="text-xs text-muted-foreground">
-                <div>Default Price: NPR {p.default_price}</div>
-                {p.unit_label && <div>Unit: {p.unit_label}</div>}
-              </CardContent>
-            </Card>
+            <ProductCard
+              key={p.id}
+              id={p.id}
+              name={p.name}
+              defaultPrice={p.default_price}
+              unitLabel={p.unit_label}
+              onDelete={(id) => deleteMutation.mutate(id)}
+            />
           ))}
         </div>
       )}
