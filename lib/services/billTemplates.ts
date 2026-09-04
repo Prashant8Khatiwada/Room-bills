@@ -143,7 +143,7 @@ export async function updateBillTemplate(
   roomId: string,
   templateId: string,
   userId: string,
-  payload: { name?: string; category?: 'fixed' | 'metered'; defaultAmount?: number; ratePerUnit?: number }
+  payload: { name?: string; category?: 'fixed' | 'quantity' | 'metered'; billCategory?: 'rent' | 'expense'; defaultAmount?: number; ratePerUnit?: number }
 ): Promise<BillTemplateItem> {
   await assertRoomMember(roomId, userId);
   const supabase = await createClient();

@@ -13,10 +13,6 @@ export const api = {
     members: (roomId: string) => `/api/rooms/${roomId}/members`,
     dashboard: (roomId: string) => `/api/rooms/${roomId}/dashboard`,
   },
-  product: {
-    list: (roomId: string) => `/api/rooms/${roomId}/products`,
-    create: (roomId: string) => `/api/rooms/${roomId}/products`,
-  },
   bill: {
     list: (roomId: string) => `/api/rooms/${roomId}/bills`,
     create: (roomId: string) => `/api/rooms/${roomId}/bills`,

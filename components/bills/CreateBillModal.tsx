@@ -16,7 +16,6 @@ export interface CreateBillModalProps {
   currentUserId?: string;
   members?: any[];
   approvedTemplates: any[];
-  products?: any[];
   onSubmitBill: (data: any) => Promise<void> | void;
 }
 

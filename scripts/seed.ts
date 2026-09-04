@@ -171,55 +171,27 @@ async function seed() {
       .select()
       .single();
 
-    // Products
-    const { data: prodMilk } = await supabase
-      .from('products')
-      .insert({
-        room_id: room1.id,
-        name: 'Whole Milk (1L)',
-        default_price: 110,
-        unit_label: 'packet',
-      })
-      .select()
-      .single();
+    // Bill Templates (Unified Catalog)
+    await supabase.from('bill_templates').insert([
+      { room_id: room1.id, name: 'House Rent', category: 'fixed', bill_category: 'rent', type: 'rent', default_amount: 15000, status: 'approved', created_by: createdUserIds[0] },
+      { room_id: room1.id, name: 'WiFi / Internet', category: 'fixed', bill_category: 'rent', type: 'wifi', default_amount: 1200, status: 'approved', created_by: createdUserIds[0] },
+      { room_id: room1.id, name: 'Waste Collection', category: 'fixed', bill_category: 'rent', type: 'waste', default_amount: 300, status: 'approved', created_by: createdUserIds[0] },
+      { room_id: room1.id, name: 'Electricity Meter', category: 'metered', bill_category: 'rent', type: 'electricity', default_amount: 0, rate_per_unit: 12, status: 'approved', created_by: createdUserIds[0] },
+      { room_id: room1.id, name: 'Groceries', category: 'quantity', bill_category: 'expense', type: 'expense', default_amount: 120, status: 'approved', created_by: createdUserIds[0] },
+      { room_id: room1.id, name: 'Vegetables', category: 'quantity', bill_category: 'expense', type: 'expense', default_amount: 80, status: 'approved', created_by: createdUserIds[0] },
+    ]);
 
-    // Sample Expenses
-    if (period1 && prodMilk) {
-      const { data: exp1 } = await supabase
-        .from('expenses')
-        .insert({
-          room_id: room1.id,
-          period_id: period1.id,
-          product_id: prodMilk.id,
-          item_name: 'Whole Milk (1L)',
-          is_fixed: true,
-          quantity: 2,
-          unit_price: 110,
-          total_amount: 220,
-          paid_by: createdUserIds[0],
-        })
-        .select()
-        .single();
-
-      if (exp1) {
-        const share = 220 / 4;
-        await supabase.from('expense_splits').insert([
-          { expense_id: exp1.id, user_id: createdUserIds[0], share: Number(share.toFixed(2)) },
-          { expense_id: exp1.id, user_id: createdUserIds[1], share: Number(share.toFixed(2)) },
-          { expense_id: exp1.id, user_id: createdUserIds[2], share: Number(share.toFixed(2)) },
-          { expense_id: exp1.id, user_id: createdUserIds[3], share: Number(share.toFixed(2)) },
-        ]);
-      }
-    }
-
-    // Sample Bills
+    // Sample Bills (Rent & Expense)
     if (period1) {
+      // 1. House Rent Bill
       const { data: billRent } = await supabase
         .from('bills')
         .insert({
           room_id: room1.id,
           period_id: period1.id,
+          category: 'rent',
           type: 'rent',
+          name: 'House Rent',
           month: today.toISOString().split('T')[0],
           amount: 16000,
           paid_by: createdUserIds[0],
@@ -233,6 +205,34 @@ async function seed() {
           { bill_id: billRent.id, user_id: createdUserIds[1], share: 4000 },
           { bill_id: billRent.id, user_id: createdUserIds[2], share: 4000 },
           { bill_id: billRent.id, user_id: createdUserIds[3], share: 4000 },
+        ]);
+      }
+
+      // 2. Groceries Expense
+      const { data: expGroceries } = await supabase
+        .from('bills')
+        .insert({
+          room_id: room1.id,
+          period_id: period1.id,
+          category: 'expense',
+          type: 'expense',
+          name: 'Groceries & Milk',
+          quantity: 2,
+          unit_price: 110,
+          amount: 220,
+          expense_date: today.toISOString().split('T')[0],
+          paid_by: createdUserIds[0],
+        })
+        .select()
+        .single();
+
+      if (expGroceries) {
+        const share = 220 / 4;
+        await supabase.from('bill_splits').insert([
+          { bill_id: expGroceries.id, user_id: createdUserIds[0], share: Number(share.toFixed(2)) },
+          { bill_id: expGroceries.id, user_id: createdUserIds[1], share: Number(share.toFixed(2)) },
+          { bill_id: expGroceries.id, user_id: createdUserIds[2], share: Number(share.toFixed(2)) },
+          { bill_id: expGroceries.id, user_id: createdUserIds[3], share: Number(share.toFixed(2)) },
         ]);
       }
     }
