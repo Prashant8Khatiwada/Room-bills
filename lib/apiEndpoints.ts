@@ -20,6 +20,7 @@ export const api = {
   bill: {
     list: (roomId: string) => `/api/rooms/${roomId}/bills`,
     create: (roomId: string) => `/api/rooms/${roomId}/bills`,
+    templates: (roomId: string) => `/api/rooms/${roomId}/bill-templates`,
   },
   expense: {
     list: (roomId: string) => `/api/rooms/${roomId}/expenses`,

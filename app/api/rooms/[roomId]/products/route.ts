@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { listProducts, createProduct, approveProduct, deleteProduct } from '@/lib/services/products';
+import { listProducts, createProduct, updateProduct, approveProduct, deleteProduct } from '@/lib/services/products';
 import { ok, err } from '@/lib/apiHelpers';
 
 export async function GET(
@@ -51,6 +51,37 @@ export async function POST(
   } catch (error: any) {
     console.error('[API] POST /api/rooms/:roomId/products error:', error);
     return err(error.message || 'Failed to create product', 400);
+  }
+}
+
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ roomId: string }> }
+) {
+  try {
+    const { roomId } = await params;
+    const body = await request.json();
+    const supabase = await createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session?.user) {
+      return err('Unauthorized', 401);
+    }
+
+    if (!body.productId) {
+      return err('Product ID is required', 400);
+    }
+
+    const updated = await updateProduct(roomId, body.productId, session.user.id, {
+      name: body.name,
+      defaultPrice: body.defaultPrice ? Number(body.defaultPrice) : undefined,
+      unitLabel: body.unitLabel,
+    });
+
+    return ok(updated);
+  } catch (error: any) {
+    console.error('[API] PUT /api/rooms/:roomId/products error:', error);
+    return err(error.message || 'Failed to update product', 400);
   }
 }
 
