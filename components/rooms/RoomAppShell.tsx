@@ -154,16 +154,22 @@ export function RoomAppShell({
             isActive={pathname === '/rooms'}
           />
           <NavItem
-            href="/personal#incomes"
+            href="/incomes"
             label="Incomes & Loans"
             icon={Wallet}
-            isActive={pathname === '/personal'}
+            isActive={pathname === '/incomes'}
           />
           <NavItem
-            href="/personal#expenses"
+            href="/expenses"
             label="Personal Expenses"
             icon={Receipt}
-            isActive={false}
+            isActive={pathname === '/expenses'}
+          />
+          <NavItem
+            href="/settings"
+            label="Settings"
+            icon={Settings}
+            isActive={pathname === '/settings'}
           />
         </div>
 
@@ -306,14 +312,24 @@ export function RoomAppShell({
                     </div>
                   </div>
                   <div className="pt-2 space-y-1">
-                    <Link href="/personal" onClick={() => setProfileOpen(false)}>
+                    <Link href="/incomes" onClick={() => setProfileOpen(false)}>
                       <Button
                         variant="ghost"
                         size="sm"
                         className="w-full justify-start text-xs text-foreground hover:bg-accent gap-2 h-8 px-2"
                       >
-                        <Wallet className="size-3.5 text-primary" />
-                        Personal Wallet
+                        <Wallet className="size-3.5 text-emerald-500" />
+                        Incomes & Loans
+                      </Button>
+                    </Link>
+                    <Link href="/settings" onClick={() => setProfileOpen(false)}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start text-xs text-foreground hover:bg-accent gap-2 h-8 px-2"
+                      >
+                        <Settings className="size-3.5 text-primary" />
+                        Global Settings
                       </Button>
                     </Link>
                     <Button
