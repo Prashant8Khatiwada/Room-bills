@@ -11,6 +11,7 @@ export const api = {
     list: '/api/rooms',
     detail: (roomId: string) => `/api/rooms/${roomId}`,
     members: (roomId: string) => `/api/rooms/${roomId}/members`,
+    dashboard: (roomId: string) => `/api/rooms/${roomId}/dashboard`,
   },
   product: {
     list: (roomId: string) => `/api/rooms/${roomId}/products`,

@@ -19,6 +19,8 @@ import {
   Users,
   Hash,
   PlusCircle,
+  LayoutDashboard,
+  Sparkles,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -55,12 +57,12 @@ export default function GlobalDashboardPage() {
 
   // Colour palette for room cards
   const cardAccents = [
-    'from-orange-400/20 to-red-400/10 border-orange-300/40',
-    'from-violet-400/20 to-purple-400/10 border-violet-300/40',
-    'from-sky-400/20 to-blue-400/10 border-sky-300/40',
-    'from-emerald-400/20 to-teal-400/10 border-emerald-300/40',
-    'from-pink-400/20 to-rose-400/10 border-pink-300/40',
-    'from-amber-400/20 to-yellow-400/10 border-amber-300/40',
+    'from-orange-500/10 via-card to-card border-orange-500/30 hover:border-orange-500/60',
+    'from-violet-500/10 via-card to-card border-violet-500/30 hover:border-violet-500/60',
+    'from-sky-500/10 via-card to-card border-sky-500/30 hover:border-sky-500/60',
+    'from-emerald-500/10 via-card to-card border-emerald-500/30 hover:border-emerald-500/60',
+    'from-pink-500/10 via-card to-card border-pink-500/30 hover:border-pink-500/60',
+    'from-amber-500/10 via-card to-card border-amber-500/30 hover:border-amber-500/60',
   ];
 
   const iconBgs = [
@@ -77,92 +79,108 @@ export default function GlobalDashboardPage() {
 
       {/* ── Top Navigation Bar ─────────────────────────────────── */}
       <header className="sticky top-0 z-30 h-14 border-b border-border/60 bg-background/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-full max-w-5xl items-center justify-between px-4 sm:px-6">
+        <div className="mx-auto flex h-full max-w-5xl items-center justify-between px-3 sm:px-6">
 
           {/* Left — brand */}
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-              <Building2 className="h-4 w-4" />
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+              <Building2 className="size-4" />
             </div>
-            <span className="text-sm font-bold tracking-tight">Room Ledger</span>
+            <span className="text-sm font-bold tracking-tight truncate max-w-[150px] sm:max-w-none">
+              Room Ledger
+            </span>
           </div>
 
           {/* Right — actions */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             <ThemeToggle />
-            <div className="hidden sm:flex h-7 items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 text-[11px] font-semibold text-muted-foreground">
-              <div className="h-4 w-4 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-[9px]">
+
+            {/* Avatar Pill */}
+            <div className="flex h-8 items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2 text-[11px] font-semibold text-muted-foreground">
+              <div className="size-5 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-[9px] shrink-0">
                 {userInitials}
               </div>
-              {firstName}
+              <span className="hidden sm:inline truncate max-w-[80px]">{firstName}</span>
             </div>
+
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              className="size-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
               onClick={handleLogout}
               title="Sign out"
             >
-              <LogOut className="h-3.5 w-3.5" />
+              <LogOut className="size-4" />
             </Button>
           </div>
         </div>
       </header>
 
       {/* ── Page Body ──────────────────────────────────────────── */}
-      <main className="mx-auto max-w-5xl px-4 sm:px-6 py-8 sm:py-12">
+      <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-10">
 
         {/* Hero greeting */}
-        <div className="mb-8 sm:mb-10">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-primary mb-1">Dashboard</p>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-            Welcome back, {firstName} 👋
-          </h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            Manage your shared living expenses across all your rooms.
-          </p>
+        <div className="mb-8 sm:mb-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/60 pb-6">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-primary mb-1 flex items-center gap-1">
+              <Sparkles className="size-3" />
+              Workspace Hub
+            </p>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+              Welcome back, {firstName} 👋
+            </h1>
+            <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
+              Select a room to access its dedicated dashboard, bills, and expense reports.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <JoinRoomDialog />
+            <CreateRoomDialog />
+          </div>
         </div>
 
-        {/* Stats row */}
+        {/* Global Summary Cards */}
         <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
-          <div className="rounded-2xl border border-border/60 bg-card p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Home className="h-3.5 w-3.5" />
+          <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Home className="size-3.5" />
               </div>
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Rooms</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Joined Rooms</span>
             </div>
             <p className="text-2xl font-bold text-foreground">{isLoading ? '—' : roomCount}</p>
           </div>
-          <div className="rounded-2xl border border-border/60 bg-card p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/10 text-violet-500">
-                <Users className="h-3.5 w-3.5" />
+
+          <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="flex size-7 items-center justify-center rounded-lg bg-violet-500/10 text-violet-500">
+                <Users className="size-3.5" />
               </div>
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Active</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Active Spaces</span>
             </div>
             <p className="text-2xl font-bold text-foreground">{isLoading ? '—' : roomCount}</p>
           </div>
-          <div className="col-span-2 sm:col-span-1 rounded-2xl border border-border/60 bg-card p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
-                <Hash className="h-3.5 w-3.5" />
+
+          <div className="col-span-2 sm:col-span-1 rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+                <Hash className="size-3.5" />
               </div>
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Member</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Account Profile</span>
             </div>
-            <p className="text-sm font-bold text-foreground truncate">{firstName}</p>
+            <p className="text-sm font-bold text-foreground truncate">{userName}</p>
           </div>
         </div>
 
         {/* Section header */}
-        <div className="mb-5 flex items-center justify-between gap-3">
+        <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-base sm:text-lg font-bold text-foreground">Your Rooms</h2>
-            <p className="text-xs text-muted-foreground">Click a room to manage bills & expenses</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <JoinRoomDialog />
-            <CreateRoomDialog />
+            <h2 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
+              <LayoutDashboard className="size-4 text-primary" />
+              Your Rooms
+            </h2>
+            <p className="text-xs text-muted-foreground">Click any room card below to view its live room dashboard</p>
           </div>
         </div>
 
@@ -175,13 +193,13 @@ export default function GlobalDashboardPage() {
           </div>
         ) : !rooms || rooms.length === 0 ? (
           /* Empty state */
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-5">
-              <PlusCircle className="h-8 w-8" />
+          <div className="flex flex-col items-center justify-center py-16 text-center rounded-3xl border border-dashed border-border p-8">
+            <div className="flex size-16 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-4">
+              <PlusCircle className="size-8" />
             </div>
-            <h3 className="text-lg font-bold text-foreground mb-2">No rooms yet</h3>
-            <p className="text-sm text-muted-foreground max-w-xs mb-6">
-              Create your first room to start splitting bills with roommates, or join one with an invite code.
+            <h3 className="text-lg font-bold text-foreground mb-1">No rooms joined yet</h3>
+            <p className="text-xs sm:text-sm text-muted-foreground max-w-xs mb-6">
+              Create your room or enter an invite code to start tracking shared expenses with roomies.
             </p>
             <div className="flex flex-col sm:flex-row gap-3">
               <CreateRoomDialog />
@@ -189,7 +207,7 @@ export default function GlobalDashboardPage() {
             </div>
           </div>
         ) : (
-          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {rooms.map((r, idx) => {
               const accent = cardAccents[idx % cardAccents.length];
               const iconBg = iconBgs[idx % iconBgs.length];
@@ -197,30 +215,30 @@ export default function GlobalDashboardPage() {
                 <button
                   key={r.id}
                   type="button"
-                  className={`group relative text-left w-full rounded-2xl border bg-gradient-to-br ${accent} p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary`}
-                  onClick={() => router.push(`/rooms/${r.id}/bills`)}
+                  className={`group relative text-left w-full rounded-2xl border bg-gradient-to-br ${accent} p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary`}
+                  onClick={() => router.push(`/rooms/${r.id}/dashboard`)}
                 >
                   {/* Room icon + name */}
                   <div className="flex items-start gap-3 mb-4">
-                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconBg} text-white font-bold text-base shadow-sm`}>
+                    <div className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${iconBg} text-white font-bold text-base shadow-sm`}>
                       {r.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1 pt-0.5">
-                      <h3 className="font-bold text-foreground text-sm sm:text-base leading-tight truncate">
+                      <h3 className="font-bold text-foreground text-base leading-tight truncate group-hover:text-primary transition-colors">
                         {r.name}
                       </h3>
-                      <span className="text-[11px] text-muted-foreground">Active workspace</span>
+                      <span className="text-[11px] text-muted-foreground font-medium">Click to open dashboard</span>
                     </div>
                   </div>
 
                   {/* Invite code */}
                   {r.invite_code && (
                     <div
-                      className="flex items-center justify-between rounded-lg bg-background/60 border border-border/40 px-3 py-2 mb-4"
+                      className="flex items-center justify-between rounded-xl bg-background/80 backdrop-blur-sm border border-border/50 px-3 py-2 mb-4"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Invite
+                        Invite Code
                       </span>
                       <button
                         type="button"
@@ -230,21 +248,21 @@ export default function GlobalDashboardPage() {
                       >
                         {r.invite_code}
                         {copiedId === r.invite_code ? (
-                          <Check className="h-3 w-3 text-emerald-500 shrink-0" />
+                          <Check className="size-3 text-emerald-500 shrink-0" />
                         ) : (
-                          <Copy className="h-3 w-3 text-muted-foreground shrink-0" />
+                          <Copy className="size-3 text-muted-foreground shrink-0" />
                         )}
                       </button>
                     </div>
                   )}
 
                   {/* Footer row */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-medium text-muted-foreground group-hover:text-foreground transition-colors">
-                      Open room →
+                  <div className="flex items-center justify-between border-t border-border/40 pt-3">
+                    <span className="text-[12px] font-semibold text-primary group-hover:underline">
+                      View Room Dashboard
                     </span>
-                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-foreground/10 text-foreground group-hover:bg-primary group-hover:text-primary-foreground transition-all">
-                      <ArrowRight className="h-3.5 w-3.5" />
+                    <div className="flex size-7 items-center justify-center rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all">
+                      <ArrowRight className="size-3.5" />
                     </div>
                   </div>
                 </button>
