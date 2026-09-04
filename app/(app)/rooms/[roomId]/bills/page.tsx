@@ -1,31 +1,23 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useMemo, useEffect, useRef, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useState, useMemo, Suspense } from 'react';
 import { useCurrentRoom } from '@/components/rooms/CurrentRoomProvider';
 import { apiClient } from '@/lib/apiClient';
 import { api } from '@/lib/apiEndpoints';
 
 import { CreateBillModal } from '@/components/bills/CreateBillModal';
 import { BillCard } from '@/components/bills/BillCard';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Receipt, Check, FileText, Clock, Trash2, Layers, ShieldCheck, Pencil, AlertTriangle, Loader2 } from 'lucide-react';
+import { Receipt, ShieldCheck, ShoppingBag, Wallet, Layers } from 'lucide-react';
 
 function BillsPageContent() {
   const { roomId, userRole } = useCurrentRoom();
   const queryClient = useQueryClient();
-  const searchParams = useSearchParams();
-  const router = useRouter();
+  const [selectedFilter, setSelectedFilter] = useState<'all' | 'rent' | 'expense'>('all');
 
-  const categoryTab: 'rent' | 'expense' = 'rent';
-
-  // Record Bill Modal State
+  // Record Entry Modal State
   const [open, setOpen] = useState(false);
 
   const { data: userMe } = useQuery({
@@ -34,18 +26,18 @@ function BillsPageContent() {
   });
 
   const { data: bills, isLoading } = useQuery({
-    queryKey: ['bills', roomId, categoryTab],
-    queryFn: () => apiClient.get<any[]>(`${api.bill.list(roomId)}?category=${categoryTab}`),
+    queryKey: ['bills', roomId, selectedFilter],
+    queryFn: () =>
+      apiClient.get<any[]>(
+        selectedFilter === 'all'
+          ? api.bill.list(roomId)
+          : `${api.bill.list(roomId)}?category=${selectedFilter}`
+      ),
   });
 
   const { data: templates } = useQuery({
-    queryKey: ['bill-templates', roomId, categoryTab],
-    queryFn: () => apiClient.get<any[]>(`${api.bill.templates(roomId)}?billCategory=${categoryTab}`),
-  });
-
-  const { data: products } = useQuery({
-    queryKey: ['products', roomId],
-    queryFn: () => apiClient.get<any[]>(api.product.list(roomId)),
+    queryKey: ['bill-templates', roomId],
+    queryFn: () => apiClient.get<any[]>(api.bill.templates(roomId)),
   });
 
   const { data: members } = useQuery({
@@ -98,12 +90,10 @@ function BillsPageContent() {
             )}
           </div>
           <h2 className="text-2xl font-bold tracking-tight text-foreground">
-            {categoryTab === 'rent' ? 'Room Rent & Fixed Bills' : 'Room Daily Expenses'}
+            Room Bills & Expenses
           </h2>
           <p className="text-xs sm:text-sm text-muted-foreground">
-            {categoryTab === 'rent'
-              ? 'Log house rent, electricity, wifi, and recurring bills with automatic split calculations.'
-              : 'Log daily room purchases like groceries, vegetables, and shared supplies with splits.'}
+            Track house rent, electricity, wifi, and daily room purchases with automatic split calculations.
           </p>
         </div>
 
@@ -111,19 +101,58 @@ function BillsPageContent() {
         <CreateBillModal
           open={open}
           onOpenChange={setOpen}
-          categoryTab={categoryTab}
+          categoryTab="rent"
           isOwner={isOwner}
           currentUserId={currentUserId}
           members={members}
           approvedTemplates={approvedTemplates}
-          products={products}
           onSubmitBill={async (payload) => {
             await createBillMutation.mutateAsync(payload);
           }}
         />
       </div>
 
-      {/* Main Content Area: LOGGED ROOM BILLS */}
+      {/* Filter Tabs */}
+      <div className="flex items-center gap-2 border-b border-border/40 pb-2">
+        <button
+          type="button"
+          onClick={() => setSelectedFilter('all')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+            selectedFilter === 'all'
+              ? 'bg-primary text-primary-foreground shadow-xs'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+          }`}
+        >
+          <Layers className="size-3.5" />
+          All Records
+        </button>
+        <button
+          type="button"
+          onClick={() => setSelectedFilter('rent')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+            selectedFilter === 'rent'
+              ? 'bg-primary text-primary-foreground shadow-xs'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+          }`}
+        >
+          <Receipt className="size-3.5" />
+          Room Bills & Rent
+        </button>
+        <button
+          type="button"
+          onClick={() => setSelectedFilter('expense')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+            selectedFilter === 'expense'
+              ? 'bg-primary text-primary-foreground shadow-xs'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+          }`}
+        >
+          <ShoppingBag className="size-3.5" />
+          Daily Expenses
+        </button>
+      </div>
+
+      {/* Main Content Area: LOGGED ROOM BILLS & EXPENSES */}
       {isLoading ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {[1, 2].map((i) => (
@@ -136,9 +165,9 @@ function BillsPageContent() {
             <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-3">
               <Receipt className="size-6" />
             </div>
-            <CardTitle className="text-base font-bold text-foreground">No recurring room bills logged</CardTitle>
+            <CardTitle className="text-base font-bold text-foreground">No records logged yet</CardTitle>
             <CardDescription className="text-xs">
-              Click &quot;Add Room Bill&quot; to select bill types from the multi-select dropdown and record payment.
+              Click &quot;Record Entry&quot; to log a room bill or daily expense item.
             </CardDescription>
           </CardHeader>
         </Card>

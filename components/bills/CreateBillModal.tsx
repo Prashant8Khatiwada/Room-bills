@@ -6,12 +6,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Lock, Plus, Check, ChevronDown, Zap, Receipt, ShoppingBag } from 'lucide-react';
+import { Lock, Plus, Check, ChevronDown, Zap, Receipt, ShoppingBag, Wallet } from 'lucide-react';
 
 export interface CreateBillModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  categoryTab: 'rent' | 'expense';
+  categoryTab?: 'rent' | 'expense';
   isOwner: boolean;
   currentUserId?: string;
   members?: any[];
@@ -25,30 +25,32 @@ export type BillCalcMode = 'fixed' | 'quantity' | 'metered';
 export function CreateBillModal({
   open,
   onOpenChange,
-  categoryTab,
+  categoryTab = 'rent',
   isOwner,
   currentUserId,
   members,
   approvedTemplates,
-  products,
   onSubmitBill,
 }: CreateBillModalProps) {
+  // Category Selection State: 'rent' (Bill) vs 'expense' (Expense)
+  const [recordCategory, setRecordCategory] = useState<'rent' | 'expense'>(categoryTab);
+
   // Combobox & Title State
   const [name, setName] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // Calculation Mode & Dynamic Fields
-  const [calcMode, setCalcMode] = useState<BillCalcMode>(categoryTab === 'expense' ? 'quantity' : 'fixed');
+  const [calcMode, setCalcMode] = useState<BillCalcMode>(recordCategory === 'expense' ? 'quantity' : 'fixed');
   const [amount, setAmount] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [unitPrice, setUnitPrice] = useState('');
 
-  // Electricity / Metered Fields
+  // Metered Fields
   const [prevUnit, setPrevUnit] = useState('');
   const [currentUnit, setCurrentUnit] = useState('');
   const [ratePerUnit, setRatePerUnit] = useState('12');
 
-  // Selected linked product or template ID
+  // Selected linked template ID
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
   // Common Fields
@@ -60,10 +62,10 @@ export function CreateBillModal({
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Default calcMode when categoryTab changes
+  // When recordCategory changes, switch default calcMode
   useEffect(() => {
-    setCalcMode(categoryTab === 'expense' ? 'quantity' : 'fixed');
-  }, [categoryTab]);
+    setCalcMode(recordCategory === 'expense' ? 'quantity' : 'fixed');
+  }, [recordCategory]);
 
   // Auto-set paidBy to current user
   useEffect(() => {
@@ -94,7 +96,7 @@ export function CreateBillModal({
     return match?.users?.name || 'You';
   }, [paidBy, currentUserId, members]);
 
-  // Combined catalog/templates list for autocomplete dropdown
+  // Filter templates matching currently selected recordCategory ('rent' vs 'expense')
   const catalogSuggestions = useMemo(() => {
     const items: Array<{
       id: string;
@@ -106,7 +108,11 @@ export function CreateBillModal({
       defaultPrice?: number;
     }> = [];
 
-    (approvedTemplates || []).forEach((t) => {
+    const categoryTemplates = (approvedTemplates || []).filter(
+      (t) => (t.bill_category || 'rent') === recordCategory
+    );
+
+    categoryTemplates.forEach((t) => {
       const isMetered = t.category === 'metered' || t.type === 'electricity' || !!t.rate_per_unit;
       const isQuantity = t.category === 'quantity' || t.unit_label || (t.bill_category === 'expense' && t.category !== 'fixed' && !isMetered);
       const mode: BillCalcMode = isMetered ? 'metered' : isQuantity ? 'quantity' : 'fixed';
@@ -123,7 +129,7 @@ export function CreateBillModal({
     });
 
     return items;
-  }, [approvedTemplates]);
+  }, [approvedTemplates, recordCategory]);
 
   const filteredSuggestions = useMemo(() => {
     if (!name.trim()) return catalogSuggestions;
@@ -201,7 +207,7 @@ export function CreateBillModal({
         const c = Number(currentUnit) || 0;
         const r = Number(ratePerUnit) || 12;
         await onSubmitBill({
-          category: categoryTab,
+          category: recordCategory,
           type: 'electricity',
           name: name.trim(),
           month,
@@ -217,8 +223,8 @@ export function CreateBillModal({
         const q = Number(quantity) || 1;
         const u = Number(unitPrice) || 0;
         await onSubmitBill({
-          category: categoryTab,
-          type: categoryTab === 'expense' ? 'expense' : 'rent',
+          category: recordCategory,
+          type: recordCategory === 'expense' ? 'expense' : 'rent',
           name: name.trim(),
           quantity: q,
           unit_price: u,
@@ -232,8 +238,8 @@ export function CreateBillModal({
         });
       } else {
         await onSubmitBill({
-          category: categoryTab,
-          type: categoryTab === 'expense' ? 'expense' : 'rent',
+          category: recordCategory,
+          type: recordCategory === 'expense' ? 'expense' : 'rent',
           name: name.trim(),
           month,
           amount: calculatedTotal,
@@ -252,17 +258,50 @@ export function CreateBillModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger render={
         <Button className="h-9 bg-primary hover:bg-primary/90 gap-1.5 text-xs font-semibold shadow-sm shrink-0">
-          <Plus className="size-4" /> {categoryTab === 'rent' ? 'Add Room Bill' : 'Add Expense'}
+          <Plus className="size-4" /> Record Entry
         </Button>
       } />
       <DialogContent className="max-w-md sm:max-w-xl p-6 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-lg font-bold">
-            {categoryTab === 'rent' ? 'Pay & Record Room Bill' : 'Record Room Expense'}
+            Record Room Bill or Expense
           </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+          {/* Record Category Selector: Room Bill vs Daily Expense */}
+          <div>
+            <label className="text-xs font-semibold text-foreground block mb-1.5">
+              Record Category
+            </label>
+            <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-1 text-xs font-medium">
+              <button
+                type="button"
+                onClick={() => setRecordCategory('rent')}
+                className={`py-1.5 px-3 rounded-md transition-all flex items-center justify-center gap-1.5 ${
+                  recordCategory === 'rent'
+                    ? 'bg-background text-primary font-bold shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Receipt className="size-3.5" />
+                Room Bill / Rent
+              </button>
+              <button
+                type="button"
+                onClick={() => setRecordCategory('expense')}
+                className={`py-1.5 px-3 rounded-md transition-all flex items-center justify-center gap-1.5 ${
+                  recordCategory === 'expense'
+                    ? 'bg-background text-emerald-600 font-bold shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <ShoppingBag className="size-3.5" />
+                Daily Expense
+              </button>
+            </div>
+          </div>
+
           {/* Searchable Select + Input Field */}
           <div className="relative" ref={dropdownRef}>
             <label className="text-xs font-semibold text-foreground block mb-1.5">
@@ -271,7 +310,7 @@ export function CreateBillModal({
             <div className="relative flex items-center">
               <Input
                 placeholder={
-                  categoryTab === 'rent'
+                  recordCategory === 'rent'
                     ? 'Type or select bill (e.g. Rent, Electricity, WiFi)'
                     : 'Type or select expense (e.g. Vegetables, Rice, Milk)'
                 }
@@ -291,11 +330,11 @@ export function CreateBillModal({
               />
             </div>
 
-            {/* Dropdown Suggestions */}
+            {/* Dropdown Suggestions matching selected recordCategory */}
             {isDropdownOpen && filteredSuggestions.length > 0 && (
               <div className="absolute z-50 mt-1 w-full rounded-xl border border-border bg-card p-1 shadow-lg max-h-56 overflow-y-auto">
                 <p className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/40 mb-1">
-                  Catalog & Saved Templates
+                  {recordCategory === 'rent' ? 'Room Bill Catalog Templates' : 'Expense Catalog Items'} ({filteredSuggestions.length})
                 </p>
                 {filteredSuggestions.map((item) => (
                   <div
@@ -304,7 +343,7 @@ export function CreateBillModal({
                     className="flex items-center justify-between rounded-lg px-2.5 py-2 text-xs cursor-pointer hover:bg-accent transition-colors"
                   >
                     <div className="flex items-center gap-2">
-                      {item.source === 'template' ? (
+                      {recordCategory === 'rent' ? (
                         <Receipt className="size-3.5 text-primary shrink-0" />
                       ) : (
                         <ShoppingBag className="size-3.5 text-emerald-500 shrink-0" />
@@ -334,7 +373,7 @@ export function CreateBillModal({
           {/* Category / Calculation Mode Selection */}
           <div>
             <label className="text-xs font-semibold text-foreground block mb-1.5">
-              Category / Pricing Type
+              Pricing / Calculation Type
             </label>
             <div className="grid grid-cols-3 gap-1.5 rounded-lg bg-muted p-1 text-xs font-medium">
               <button
