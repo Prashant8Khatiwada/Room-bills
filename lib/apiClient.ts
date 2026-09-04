@@ -38,8 +38,9 @@ async function request<T>(method: string, url: string, body?: unknown, opts?: Re
       const errorMsg = json.error?.message || 'An unexpected error occurred';
       const errorCode = json.error?.code;
 
-      if (!silent) {
-        toast.error(errorMsg);
+      // Suppress automatic toast for 401 Unauthorized (handled by auth guard/redirects) and deduplicate with id
+      if (!silent && res.status !== 401) {
+        toast.error(errorMsg, { id: errorMsg });
       }
 
       throw new ApiError(errorMsg, errorCode, res.status);
@@ -53,7 +54,7 @@ async function request<T>(method: string, url: string, body?: unknown, opts?: Re
 
     const networkError = 'Network connection failure';
     if (!silent) {
-      toast.error(networkError);
+      toast.error(networkError, { id: networkError });
     }
     throw new ApiError(networkError);
   }

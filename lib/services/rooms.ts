@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export function generateInviteCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // excludes 0, O, 1, I
@@ -23,12 +24,14 @@ export async function assertRoomMember(roomId: string, userId: string): Promise<
   }
 }
 
-async function ensureUserExists(supabase: any, userId: string) {
-  const { data: existing } = await supabase.from('users').select('id').eq('id', userId).single();
+// Uses service-role admin client to bypass RLS and sync the user row into public.users
+async function ensureUserExists(userId: string) {
+  const admin = createAdminClient();
+  const { data: existing } = await admin.from('users').select('id').eq('id', userId).single();
   if (!existing) {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await admin.auth.admin.getUserById(userId);
     if (user) {
-      await supabase.from('users').upsert({
+      await admin.from('users').upsert({
         id: user.id,
         email: user.email || '',
         name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
@@ -39,7 +42,7 @@ async function ensureUserExists(supabase: any, userId: string) {
 
 export async function createRoom(userId: string, name: string) {
   const supabase = await createClient();
-  await ensureUserExists(supabase, userId);
+  await ensureUserExists(userId);
   let inviteCode = generateInviteCode();
 
   // Retry logic on collision
@@ -99,7 +102,7 @@ export async function createRoom(userId: string, name: string) {
 
 export async function joinRoom(userId: string, inviteCode: string) {
   const supabase = await createClient();
-  await ensureUserExists(supabase, userId);
+  await ensureUserExists(userId);
 
   const { data: room } = await supabase
     .from('rooms')
