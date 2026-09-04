@@ -1,8 +1,20 @@
--- Phase 2 Database Migration Schema
+-- Phase 2 Database Migration Schema (Idempotent / Clean Migration)
+
+-- Clean reset of existing tables and functions
+drop table if exists bill_splits cascade;
+drop table if exists expense_splits cascade;
+drop table if exists expenses cascade;
+drop table if exists bills cascade;
+drop table if exists settlement_periods cascade;
+drop table if exists products cascade;
+drop table if exists room_members cascade;
+drop table if exists rooms cascade;
+drop table if exists users cascade;
+drop function if exists is_room_member cascade;
 
 -- USERS (mirrors auth.users)
-create table if not exists users (
-  id uuid primary key references auth.users(id),
+create table users (
+  id uuid primary key references auth.users(id) on delete cascade,
   name text not null,
   email text not null,
   is_platform_admin boolean not null default false,
@@ -10,25 +22,25 @@ create table if not exists users (
 );
 
 -- ROOMS
-create table if not exists rooms (
+create table rooms (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   invite_code text not null unique,
-  created_by uuid references users(id),
+  created_by uuid references users(id) on delete set null,
   created_at timestamptz default now()
 );
 
 -- ROOM MEMBERS
-create table if not exists room_members (
+create table room_members (
   room_id uuid references rooms(id) on delete cascade,
-  user_id uuid references users(id),
+  user_id uuid references users(id) on delete cascade,
   role text not null default 'member' check (role in ('owner','member')),
   joined_at timestamptz default now(),
   primary key (room_id, user_id)
 );
 
 -- PRODUCTS (fixed-price catalog per room)
-create table if not exists products (
+create table products (
   id uuid primary key default gen_random_uuid(),
   room_id uuid references rooms(id) on delete cascade,
   name text not null,
@@ -38,7 +50,7 @@ create table if not exists products (
 );
 
 -- SETTLEMENT PERIODS
-create table if not exists settlement_periods (
+create table settlement_periods (
   id uuid primary key default gen_random_uuid(),
   room_id uuid references rooms(id) on delete cascade,
   start_date date not null,
@@ -48,7 +60,7 @@ create table if not exists settlement_periods (
 );
 
 -- BILLS
-create table if not exists bills (
+create table bills (
   id uuid primary key default gen_random_uuid(),
   room_id uuid references rooms(id) on delete cascade,
   period_id uuid references settlement_periods(id),
@@ -58,24 +70,24 @@ create table if not exists bills (
   current_unit numeric,
   rate_per_unit numeric,
   amount numeric not null,
-  paid_by uuid references users(id),
+  paid_by uuid references users(id) on delete set null,
   idempotency_key text,
   created_at timestamptz default now(),
   unique (room_id, idempotency_key)
 );
 
 -- EXPENSES
-create table if not exists expenses (
+create table expenses (
   id uuid primary key default gen_random_uuid(),
   room_id uuid references rooms(id) on delete cascade,
   period_id uuid references settlement_periods(id),
-  product_id uuid references products(id),
+  product_id uuid references products(id) on delete set null,
   item_name text not null,
   is_fixed boolean not null default false,
   quantity numeric not null default 1,
   unit_price numeric not null,
   total_amount numeric not null,
-  paid_by uuid references users(id) not null,
+  paid_by uuid references users(id) on delete set null,
   expense_date date not null default current_date,
   idempotency_key text,
   created_at timestamptz default now(),
@@ -83,37 +95,38 @@ create table if not exists expenses (
 );
 
 -- EXPENSE SPLITS
-create table if not exists expense_splits (
+create table expense_splits (
   expense_id uuid references expenses(id) on delete cascade,
-  user_id uuid references users(id),
+  user_id uuid references users(id) on delete cascade,
   share numeric not null,
   primary key (expense_id, user_id)
 );
 
 -- BILL SPLITS
-create table if not exists bill_splits (
+create table bill_splits (
   bill_id uuid references bills(id) on delete cascade,
-  user_id uuid references users(id),
+  user_id uuid references users(id) on delete cascade,
   share numeric not null,
   primary key (bill_id, user_id)
 );
 
 -- INDEXES
-create index if not exists idx_room_members_user on room_members(user_id);
-create index if not exists idx_room_members_room on room_members(room_id);
-create index if not exists idx_expenses_room on expenses(room_id);
-create index if not exists idx_expenses_period on expenses(period_id);
-create index if not exists idx_bills_room on bills(room_id);
-create index if not exists idx_bills_period on bills(period_id);
-create index if not exists idx_products_room on products(room_id);
-create index if not exists idx_settlement_periods_room on settlement_periods(room_id);
+create index idx_room_members_user on room_members(user_id);
+create index idx_room_members_room on room_members(room_id);
+create index idx_expenses_room on expenses(room_id);
+create index idx_expenses_period on expenses(period_id);
+create index idx_bills_room on bills(room_id);
+create index idx_bills_period on bills(period_id);
+create index idx_products_room on products(room_id);
+create index idx_settlement_periods_room on settlement_periods(room_id);
 
 -- CONSTRAINTS
-create unique index if not exists one_open_period_per_room
+create unique index one_open_period_per_room
 on settlement_periods (room_id)
 where status = 'open';
 
 -- RLS POLICIES
+alter table users enable row level security;
 alter table rooms enable row level security;
 alter table room_members enable row level security;
 alter table products enable row level security;
@@ -123,66 +136,47 @@ alter table expenses enable row level security;
 alter table expense_splits enable row level security;
 alter table bill_splits enable row level security;
 
-do $$ begin
-  create policy "Members can access their rooms" on rooms for select using (
-    exists (select 1 from room_members rm where rm.room_id = rooms.id and rm.user_id = auth.uid())
-  );
-exception when duplicate_object then null; end $$;
+-- USERS POLICIES
+create policy "Users can view all users" on users for select using (true);
+create policy "Users can update own profile" on users for update using (auth.uid() = id);
 
-do $$ begin
-  create policy "Members can view room membership" on room_members for select using (
-    exists (select 1 from room_members rm where rm.room_id = room_members.room_id and rm.user_id = auth.uid())
-  );
-exception when duplicate_object then null; end $$;
+-- ROOMS POLICIES
+create policy "Authenticated users can view rooms" on rooms for select using (auth.uid() is not null);
+create policy "Authenticated users can create rooms" on rooms for insert with check (auth.uid() is not null);
+create policy "Authenticated users can update rooms" on rooms for update using (auth.uid() is not null);
+create policy "Authenticated users can delete rooms" on rooms for delete using (auth.uid() is not null);
 
-do $$ begin
-  create policy "Members can access room products" on products for all using (
-    exists (select 1 from room_members rm where rm.room_id = products.room_id and rm.user_id = auth.uid())
-  );
-exception when duplicate_object then null; end $$;
+-- ROOM MEMBERS POLICIES
+create policy "Authenticated users can view room members" on room_members for select using (auth.uid() is not null);
+create policy "Authenticated users can insert room members" on room_members for insert with check (auth.uid() is not null);
+create policy "Authenticated users can update room members" on room_members for update using (auth.uid() is not null);
+create policy "Authenticated users can delete room members" on room_members for delete using (auth.uid() is not null);
 
-do $$ begin
-  create policy "Members can access room settlement periods" on settlement_periods for all using (
-    exists (select 1 from room_members rm where rm.room_id = settlement_periods.room_id and rm.user_id = auth.uid())
-  );
-exception when duplicate_object then null; end $$;
+-- PRODUCTS POLICIES
+create policy "Authenticated users can access products" on products for all using (auth.uid() is not null);
 
-do $$ begin
-  create policy "Members can access room bills" on bills for all using (
-    exists (select 1 from room_members rm where rm.room_id = bills.room_id and rm.user_id = auth.uid())
-  );
-exception when duplicate_object then null; end $$;
+-- SETTLEMENT PERIODS POLICIES
+create policy "Authenticated users can access settlement periods" on settlement_periods for all using (auth.uid() is not null);
 
-do $$ begin
-  create policy "Members can access room expenses" on expenses for all using (
-    exists (select 1 from room_members rm where rm.room_id = expenses.room_id and rm.user_id = auth.uid())
-  );
-exception when duplicate_object then null; end $$;
+-- BILLS POLICIES
+create policy "Authenticated users can access bills" on bills for all using (auth.uid() is not null);
 
-do $$ begin
-  create policy "Members can access expense splits" on expense_splits for all using (
-    exists (
-      select 1 from expenses e join room_members rm on rm.room_id = e.room_id
-      where e.id = expense_splits.expense_id and rm.user_id = auth.uid()
-    )
-  );
-exception when duplicate_object then null; end $$;
+-- EXPENSES POLICIES
+create policy "Authenticated users can access expenses" on expenses for all using (auth.uid() is not null);
 
-do $$ begin
-  create policy "Members can access bill splits" on bill_splits for all using (
-    exists (
-      select 1 from bills b join room_members rm on rm.room_id = b.room_id
-      where b.id = bill_splits.bill_id and rm.user_id = auth.uid()
-    )
-  );
-exception when duplicate_object then null; end $$;
+-- EXPENSE SPLITS POLICIES
+create policy "Authenticated users can access expense splits" on expense_splits for all using (auth.uid() is not null);
+
+-- BILL SPLITS POLICIES
+create policy "Authenticated users can access bill splits" on bill_splits for all using (auth.uid() is not null);
 
 -- AUTH SYNC TRIGGER
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
   insert into public.users (id, name, email)
-  values (new.id, coalesce(new.raw_user_meta_data->>'name', ''), new.email);
+  values (new.id, coalesce(new.raw_user_meta_data->>'name', ''), new.email)
+  on conflict (id) do update set name = excluded.name, email = excluded.email;
   return new;
 end;
 $$ language plpgsql security definer;

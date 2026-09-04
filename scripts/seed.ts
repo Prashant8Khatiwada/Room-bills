@@ -1,21 +1,34 @@
 import fs from 'fs';
 import path from 'path';
 
-if (typeof process !== 'undefined' && typeof process.loadEnvFile === 'function') {
-  const envLocalPath = path.resolve(process.cwd(), '.env.local');
-  const envPath = path.resolve(process.cwd(), '.env');
-  if (fs.existsSync(envLocalPath)) {
-    try { process.loadEnvFile(envLocalPath); } catch {}
-  } else if (fs.existsSync(envPath)) {
-    try { process.loadEnvFile(envPath); } catch {}
+// Load .env.local synchronously before accessing environment variables
+const envLocalPath = path.resolve(process.cwd(), '.env.local');
+if (fs.existsSync(envLocalPath)) {
+  if (typeof process.loadEnvFile === 'function') {
+    try {
+      process.loadEnvFile(envLocalPath);
+    } catch {}
+  }
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    const content = fs.readFileSync(envLocalPath, 'utf8');
+    for (const line of content.split('\n')) {
+      const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+      if (match) {
+        const key = match[1];
+        let value = (match[2] || '').trim();
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+        process.env[key] = value;
+      }
+    }
   }
 }
 
 import { createClient } from '@supabase/supabase-js';
-import { env } from '../lib/envconfig';
 
-const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
 
 if (!supabaseUrl || !serviceRoleKey) {
   console.error('Error: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables are required.');
@@ -59,7 +72,6 @@ async function seed() {
     if (existingUser) {
       userId = existingUser.id;
       console.log(`User ${user.email} already exists in database (${userId})`);
-      // Update password and auto-confirm email just in case
       await supabase.auth.admin.updateUserById(existingUser.id, {
         password: user.password,
         email_confirm: true,
@@ -75,9 +87,8 @@ async function seed() {
 
       if (authError || !authData.user) {
         if (authError?.message?.includes('already been registered') || (authError as any)?.code === 'email_exists') {
-          // Find user in auth users list
           const { data: usersList } = await supabase.auth.admin.listUsers();
-          const match = usersList?.users?.find(u => u.email === user.email);
+          const match = usersList?.users?.find((u) => u.email === user.email);
           if (match) {
             userId = match.id;
             await supabase.auth.admin.updateUserById(match.id, {
@@ -102,7 +113,6 @@ async function seed() {
 
     if (userId) {
       createdUserIds.push(userId);
-      // Ensure user row exists in public.users table (trigger handles new inserts, but if table was created after auth user, upsert it)
       await supabase
         .from('users')
         .upsert({
@@ -118,12 +128,11 @@ async function seed() {
     }
   }
 
-  if (createdUserIds.length < 3) {
-    console.error('Could not create all 3 test users. Aborting room seed.');
-    return;
+  if (createdUserIds.length < 4) {
+    console.error('Could not create all required test users.');
   }
 
-  // Create Room 1 (Owner: Alice, Members: Bob, Carol)
+  // Create Room 1 (Owner: Prashant, Members: Alice, Bob, Carol)
   const { data: room1, error: r1Error } = await supabase
     .from('rooms')
     .insert({
@@ -135,7 +144,7 @@ async function seed() {
     .single();
 
   if (r1Error) {
-    console.log('Room 1 may already exist:', r1Error.message);
+    console.log('Room 1 status:', r1Error.message);
   } else if (room1) {
     console.log(`Created Room 1: ${room1.name} (${room1.id})`);
 
@@ -144,6 +153,7 @@ async function seed() {
       { room_id: room1.id, user_id: createdUserIds[0], role: 'owner' },
       { room_id: room1.id, user_id: createdUserIds[1], role: 'member' },
       { room_id: room1.id, user_id: createdUserIds[2], role: 'member' },
+      { room_id: room1.id, user_id: createdUserIds[3], role: 'member' },
     ]);
 
     // Open first settlement period
@@ -192,11 +202,12 @@ async function seed() {
         .single();
 
       if (exp1) {
-        const share = 220 / 3;
+        const share = 220 / 4;
         await supabase.from('expense_splits').insert([
           { expense_id: exp1.id, user_id: createdUserIds[0], share: Number(share.toFixed(2)) },
           { expense_id: exp1.id, user_id: createdUserIds[1], share: Number(share.toFixed(2)) },
           { expense_id: exp1.id, user_id: createdUserIds[2], share: Number(share.toFixed(2)) },
+          { expense_id: exp1.id, user_id: createdUserIds[3], share: Number(share.toFixed(2)) },
         ]);
       }
     }
@@ -210,7 +221,7 @@ async function seed() {
           period_id: period1.id,
           type: 'rent',
           month: today.toISOString().split('T')[0],
-          amount: 15000,
+          amount: 16000,
           paid_by: createdUserIds[0],
         })
         .select()
@@ -218,9 +229,10 @@ async function seed() {
 
       if (billRent) {
         await supabase.from('bill_splits').insert([
-          { bill_id: billRent.id, user_id: createdUserIds[0], share: 5000 },
-          { bill_id: billRent.id, user_id: createdUserIds[1], share: 5000 },
-          { bill_id: billRent.id, user_id: createdUserIds[2], share: 5000 },
+          { bill_id: billRent.id, user_id: createdUserIds[0], share: 4000 },
+          { bill_id: billRent.id, user_id: createdUserIds[1], share: 4000 },
+          { bill_id: billRent.id, user_id: createdUserIds[2], share: 4000 },
+          { bill_id: billRent.id, user_id: createdUserIds[3], share: 4000 },
         ]);
       }
     }
@@ -229,7 +241,7 @@ async function seed() {
   console.log('✅ Seed completed successfully!');
 }
 
-seed().catch(err => {
+seed().catch((err) => {
   console.error('Seed script failed:', err);
   process.exit(1);
 });

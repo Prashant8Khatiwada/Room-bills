@@ -23,8 +23,23 @@ export async function assertRoomMember(roomId: string, userId: string): Promise<
   }
 }
 
+async function ensureUserExists(supabase: any, userId: string) {
+  const { data: existing } = await supabase.from('users').select('id').eq('id', userId).single();
+  if (!existing) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from('users').upsert({
+        id: user.id,
+        email: user.email || '',
+        name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
+      }, { onConflict: 'id' });
+    }
+  }
+}
+
 export async function createRoom(userId: string, name: string) {
   const supabase = await createClient();
+  await ensureUserExists(supabase, userId);
   let inviteCode = generateInviteCode();
 
   // Retry logic on collision
@@ -84,6 +99,7 @@ export async function createRoom(userId: string, name: string) {
 
 export async function joinRoom(userId: string, inviteCode: string) {
   const supabase = await createClient();
+  await ensureUserExists(supabase, userId);
 
   const { data: room } = await supabase
     .from('rooms')

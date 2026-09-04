@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/apiClient';
 import { api } from '@/lib/apiEndpoints';
 import { RoomSwitcher } from '@/components/rooms/RoomSwitcher';
+import { CreateRoomDialog } from '@/components/rooms/CreateRoomDialog';
+import { JoinRoomDialog } from '@/components/rooms/JoinRoomDialog';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 import { Button } from '@/components/ui/button';
@@ -45,12 +47,16 @@ export default function GlobalDashboardPage() {
       </header>
 
       <main className="mx-auto max-w-6xl p-6">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-bold text-foreground">Your Rooms</h2>
-            <p className="text-sm text-muted-foreground">Select a room to manage bills and expenses</p>
+            <p className="text-sm text-muted-foreground">Select a room to manage bills and expenses, or add a new one.</p>
           </div>
-          {rooms && rooms.length > 0 && <RoomSwitcher />}
+          <div className="flex flex-wrap items-center gap-3">
+            {rooms && rooms.length > 0 && <RoomSwitcher />}
+            <CreateRoomDialog />
+            <JoinRoomDialog />
+          </div>
         </div>
 
         {isLoading ? (
@@ -59,18 +65,22 @@ export default function GlobalDashboardPage() {
               <Skeleton key={i} className="h-32 rounded-xl" />
             ))}
           </div>
-        ) : rooms?.length === 0 ? (
+        ) : !rooms || rooms.length === 0 ? (
           <Card className="p-8 text-center border-dashed">
             <CardHeader>
-              <CardTitle className="text-lg">No rooms yet</CardTitle>
-              <CardDescription>
+              <CardTitle className="text-xl">No rooms found</CardTitle>
+              <CardDescription className="max-w-md mx-auto">
                 Create a new room to start tracking expenses with your room members, or join an existing room using an invite code.
               </CardDescription>
             </CardHeader>
+            <CardContent className="flex justify-center gap-4 pt-4">
+              <CreateRoomDialog />
+              <JoinRoomDialog />
+            </CardContent>
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {rooms?.map((r) => (
+            {rooms.map((r) => (
               <Card key={r.id} className="transition-shadow hover:shadow-md">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg font-bold text-foreground">{r.name}</CardTitle>
