@@ -40,7 +40,8 @@ function BillsPageContent() {
   // Multi-Select Dropdown State
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [selectedTemplates, setSelectedTemplates] = useState<Record<string, boolean>>({});
-  const [templateCustomNames, setTemplateCustomNames] = useState<Record<string, string>>({});
+  const [customBatchTitle, setCustomBatchTitle] = useState('');
+  const [isCustomTitleOverridden, setIsCustomTitleOverridden] = useState(false);
   const [electricityUnits, setElectricityUnits] = useState<{ prev: string; curr: string; rate: string }>({
     prev: '',
     curr: '',
@@ -49,6 +50,7 @@ function BillsPageContent() {
 
   // Custom Bill State
   const [customName, setCustomName] = useState('');
+  const [customCategory, setCustomCategory] = useState<'fixed' | 'metered'>('fixed');
   const [month, setMonth] = useState(new Date().toISOString().split('T')[0]);
   const [customAmount, setCustomAmount] = useState('');
   const [paidBy, setPaidBy] = useState('');
@@ -139,6 +141,14 @@ function BillsPageContent() {
   const selectedTemplateItems = useMemo(() => {
     return approvedTemplates.filter((t) => selectedTemplates[t.id]);
   }, [approvedTemplates, selectedTemplates]);
+
+  // Auto-generate joined title when selected templates change (unless user manually overrides)
+  useEffect(() => {
+    if (!isCustomTitleOverridden) {
+      const autoTitle = selectedTemplateItems.map((t) => t.name).join(' - ');
+      setCustomBatchTitle(autoTitle);
+    }
+  }, [selectedTemplateItems, isCustomTitleOverridden]);
 
   // Check if any metered bill (e.g. Electricity, Water) is selected in multi-select
   const meteredSelectedItems = useMemo(() => {
@@ -244,7 +254,8 @@ function BillsPageContent() {
 
   function resetForm() {
     setSelectedTemplates({});
-    setTemplateCustomNames({});
+    setCustomBatchTitle('');
+    setIsCustomTitleOverridden(false);
     setCustomName('');
     setCustomAmount('');
     setElectricityUnits({ prev: '', curr: '', rate: '12' });
@@ -260,36 +271,27 @@ function BillsPageContent() {
 
   async function handleMultiSelectSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!paidBy || selectedTemplateItems.length === 0) return;
+    if (!paidBy || selectedTemplateItems.length === 0 || dynamicTotal <= 0) return;
 
-    for (const t of selectedTemplateItems) {
-      const billTitle = (templateCustomNames[t.id] || t.name).trim();
-      const isMetered = t.category === 'metered' || t.type === 'electricity' || t.rate_per_unit;
-      if (isMetered) {
-        const prev = Number(electricityUnits.prev) || 0;
-        const curr = Number(electricityUnits.curr) || 0;
-        const rate = Number(t.rate_per_unit) || 12; // Rate locked from template!
-        await apiClient.post(api.bill.create(roomId), {
-          type: 'electricity',
-          name: billTitle,
-          month,
-          prev_unit: prev,
-          current_unit: curr,
-          rate_per_unit: rate,
-          paid_by: paidBy,
-        });
-      } else {
-        await apiClient.post(api.bill.create(roomId), {
-          type: 'rent',
-          name: billTitle,
-          month,
-          amount: Number(t.default_amount),
-          paid_by: paidBy,
-        });
-      }
-    }
+    const finalTitle = customBatchTitle.trim() || selectedTemplateItems.map((t) => t.name).join(' - ');
+    const meteredItem = selectedTemplateItems.find((t) => t.category === 'metered' || t.type === 'electricity' || t.rate_per_unit);
+    const prev = Number(electricityUnits.prev) || 0;
+    const curr = Number(electricityUnits.curr) || 0;
+    const rate = Number(meteredItem?.rate_per_unit) || 12;
+
+    await apiClient.post(api.bill.create(roomId), {
+      type: meteredItem && selectedTemplateItems.length === 1 ? 'electricity' : 'rent',
+      name: finalTitle,
+      month,
+      amount: dynamicTotal,
+      prev_unit: meteredItem && selectedTemplateItems.length === 1 ? prev : undefined,
+      current_unit: meteredItem && selectedTemplateItems.length === 1 ? curr : undefined,
+      rate_per_unit: meteredItem && selectedTemplateItems.length === 1 ? rate : undefined,
+      paid_by: paidBy,
+    });
 
     queryClient.invalidateQueries({ queryKey: ['bills', roomId] });
+    queryClient.invalidateQueries({ queryKey: ['bill-logs', roomId] });
     queryClient.invalidateQueries({ queryKey: ['settlement', roomId] });
     queryClient.invalidateQueries({ queryKey: ['room-dashboard', roomId] });
     setOpen(false);
@@ -300,13 +302,31 @@ function BillsPageContent() {
     e.preventDefault();
     if (!paidBy || !customName) return;
 
-    createBillMutation.mutate({
-      type: 'rent',
-      name: customName,
-      month,
-      amount: Number(customAmount),
-      paid_by: paidBy,
-    });
+    if (customCategory === 'metered') {
+      const prev = Number(electricityUnits.prev) || 0;
+      const curr = Number(electricityUnits.curr) || 0;
+      const rate = Number(electricityUnits.rate) || 12;
+      const amount = (curr - prev) * rate;
+
+      createBillMutation.mutate({
+        type: 'electricity',
+        name: customName,
+        month,
+        prev_unit: prev,
+        current_unit: curr,
+        rate_per_unit: rate,
+        amount,
+        paid_by: paidBy,
+      });
+    } else {
+      createBillMutation.mutate({
+        type: 'rent',
+        name: customName,
+        month,
+        amount: Number(customAmount),
+        paid_by: paidBy,
+      });
+    }
   }
 
   function handleProposeTemplate(e: React.FormEvent) {
@@ -505,26 +525,21 @@ function BillsPageContent() {
                       )}
                     </div>
 
-                    {/* Editable Bill Titles for Selected Templates */}
+                    {/* Single Combined Bill Title Input */}
                     {selectedTemplateItems.length > 0 && (
                       <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
                         <label className="text-[11px] font-semibold text-foreground block">
-                          Bill Title (Editable)
+                          Bill Title
                         </label>
-                        <div className="space-y-2">
-                          {selectedTemplateItems.map((t) => (
-                            <div key={t.id} className="flex items-center gap-2">
-                              <Input
-                                value={templateCustomNames[t.id] ?? t.name}
-                                onChange={(e) =>
-                                  setTemplateCustomNames((prev) => ({ ...prev, [t.id]: e.target.value }))
-                                }
-                                className="h-8 text-xs bg-background"
-                                placeholder="Edit bill name"
-                              />
-                            </div>
-                          ))}
-                        </div>
+                        <Input
+                          value={customBatchTitle}
+                          onChange={(e) => {
+                            setCustomBatchTitle(e.target.value);
+                            setIsCustomTitleOverridden(true);
+                          }}
+                          className="h-8 text-xs bg-background"
+                          placeholder="e.g. House Rent - WiFi / Internet"
+                        />
                       </div>
                     )}
 
@@ -647,6 +662,95 @@ function BillsPageContent() {
                       />
                     </div>
 
+                    {/* Category Dropdown (Fixed / Metered) */}
+                    <div>
+                      <label className="text-xs font-semibold text-foreground block mb-1.5">Bill Category</label>
+                      <Select
+                        value={customCategory}
+                        onValueChange={(val) => val && setCustomCategory(val)}
+                      >
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue placeholder="Select category">
+                            {customCategory === 'fixed' ? 'Fixed Price (Flat Amount)' : 'Metered Reading (Per Unit Rate)'}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="fixed" className="text-xs">
+                            Fixed Price (Flat Amount)
+                          </SelectItem>
+                          <SelectItem value="metered" className="text-xs">
+                            Metered Reading (Per Unit Rate)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Metered Readings if Metered Category is chosen */}
+                    {customCategory === 'metered' ? (
+                      <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-3 space-y-3">
+                        <p className="text-xs font-bold text-sky-600">Metered Consumption</p>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <label className="text-[10px] font-medium text-muted-foreground">Prev Unit</label>
+                            <Input
+                              type="number"
+                              placeholder="e.g. 1000"
+                              value={electricityUnits.prev}
+                              onChange={(e) =>
+                                setElectricityUnits((prev) => ({ ...prev, prev: e.target.value }))
+                              }
+                              required
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-medium text-muted-foreground">Curr Unit</label>
+                            <Input
+                              type="number"
+                              placeholder="e.g. 1120"
+                              value={electricityUnits.curr}
+                              onChange={(e) =>
+                                setElectricityUnits((prev) => ({ ...prev, curr: e.target.value }))
+                              }
+                              required
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-medium text-muted-foreground">Rate / Unit</label>
+                            <Input
+                              type="number"
+                              placeholder="12"
+                              value={electricityUnits.rate}
+                              onChange={(e) =>
+                                setElectricityUnits((prev) => ({ ...prev, rate: e.target.value }))
+                              }
+                              required
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        </div>
+                        {Number(electricityUnits.curr) >= Number(electricityUnits.prev) && Number(electricityUnits.rate) > 0 && (
+                          <p className="text-[11px] font-semibold text-sky-700">
+                            Calculated: NPR {((Number(electricityUnits.curr) - Number(electricityUnits.prev)) * Number(electricityUnits.rate)).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="text-xs font-semibold text-foreground block mb-1.5">Amount (NPR)</label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="e.g. 15000"
+                          value={customAmount}
+                          onChange={(e) => setCustomAmount(e.target.value)}
+                          required
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                    )}
+
                     {/* Paid By Field */}
                     <div>
                       <label className="text-xs font-semibold text-foreground block mb-1.5">Paid By</label>
@@ -679,19 +783,6 @@ function BillsPageContent() {
                     <div>
                       <label className="text-xs font-semibold text-foreground block mb-1.5">Month Date</label>
                       <Input type="date" value={month} onChange={(e) => setMonth(e.target.value)} required className="h-9 text-xs" />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-semibold text-foreground block mb-1.5">Amount (NPR)</label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="e.g. 15000"
-                        value={customAmount}
-                        onChange={(e) => setCustomAmount(e.target.value)}
-                        required
-                        className="h-9 text-xs"
-                      />
                     </div>
 
                     <Button type="submit" disabled={createBillMutation.isPending} className="w-full h-10 text-xs font-bold shadow-xs">
@@ -1074,47 +1165,57 @@ function BillsPageContent() {
               Complete history of created and deleted room bills with timestamps and member actions.
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="p-6">
             {(!billLogs || billLogs.length === 0) ? (
               <div className="p-8 text-center text-xs text-muted-foreground">
                 No bill creation or deletion logs recorded yet.
               </div>
             ) : (
-              <div className="divide-y divide-border/60">
+              <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-border/80">
                 {billLogs.map((log) => {
-                  const isDeleted = log.action === 'deleted';
-                  const performerName = log.users?.name || log.users?.email?.split('@')[0] || 'Room Member';
-                  const billName = log.details?.name || 'Bill Item';
-                  const amount = log.details?.amount || 0;
+                  const actionType = log.action || 'paid_bill';
+                  const performer = log.userName || log.users?.name || log.users?.email?.split('@')[0] || 'Room Member';
+                  const title = log.title || log.details?.name || log.details?.title || 'Bill Item';
+                  const amount = log.amount || log.details?.amount;
                   const formattedDate = log.created_at
                     ? new Date(log.created_at).toLocaleString()
                     : 'Recently';
 
+                  let actionBadge = { label: 'PAID BILL', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' };
+                  let sentence = `${performer} paid NPR ${amount?.toLocaleString() || 0} for ${title}`;
+
+                  if (actionType === 'deleted_bill' || actionType === 'deleted') {
+                    actionBadge = { label: 'DELETED BILL', color: 'bg-rose-500/10 text-rose-500 border-rose-500/20' };
+                    sentence = `${performer} deleted logged bill "${title}"${amount ? ` (NPR ${amount.toLocaleString()})` : ''}`;
+                  } else if (actionType === 'created_template') {
+                    actionBadge = { label: 'PROPOSED TEMPLATE', color: 'bg-amber-500/10 text-amber-500 border-amber-500/20' };
+                    sentence = `${performer} proposed template "${title}"`;
+                  } else if (actionType === 'approved_template') {
+                    actionBadge = { label: 'APPROVED TEMPLATE', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' };
+                    sentence = `${performer} approved bill template "${title}"`;
+                  } else if (actionType === 'deleted_template') {
+                    actionBadge = { label: 'DELETED TEMPLATE', color: 'bg-rose-500/10 text-rose-500 border-rose-500/20' };
+                    sentence = `${performer} deleted bill template "${title}"`;
+                  }
+
                   return (
-                    <div key={log.id} className="flex items-center justify-between p-4 text-xs hover:bg-muted/30 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                            isDeleted
-                              ? 'bg-destructive/10 text-destructive border border-destructive/20'
-                              : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-                          }`}
-                        >
-                          {isDeleted ? 'Deleted' : 'Created'}
-                        </span>
-                        <div>
-                          <p className="font-bold text-foreground text-sm">
-                            {billName}
-                            {amount > 0 && <span className="font-mono text-primary ml-2 font-extrabold">NPR {amount.toLocaleString()}</span>}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground mt-0.5">
-                            Action by <span className="font-semibold text-foreground">{performerName}</span>
-                          </p>
+                    <div key={log.id} className="relative group flex flex-col gap-1 text-xs">
+                      {/* Timeline node dot */}
+                      <span className="absolute -left-[27px] top-1.5 size-3 rounded-full border-2 border-background bg-primary shadow-xs" />
+                      
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider border ${actionBadge.color}`}>
+                            {actionBadge.label}
+                          </span>
+                          <span className="font-bold text-foreground text-sm">
+                            {sentence}
+                          </span>
                         </div>
+                        <span className="text-[10px] font-mono text-muted-foreground shrink-0">
+                          {formattedDate}
+                        </span>
                       </div>
-                      <span className="text-[11px] font-mono text-muted-foreground shrink-0">
-                        {formattedDate}
-                      </span>
                     </div>
                   );
                 })}

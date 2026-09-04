@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { assertRoomMember } from './rooms';
+import { recordAuditLog } from './auditLogs';
 
 export interface BillTemplateItem {
   id: string;
@@ -105,6 +106,13 @@ export async function createBillTemplate(
       .select()
       .single();
 
+    try {
+      await recordAuditLog(roomId, userId, 'created_template', {
+        title: templateData.name,
+        amount: templateData.default_amount || templateData.rate_per_unit,
+      });
+    } catch {}
+
     if (error) {
       console.warn('[BillTemplates] Fallback insert:', error.message);
       return { id: `custom-${Date.now()}`, ...templateData } as BillTemplateItem;
@@ -177,6 +185,13 @@ export async function approveBillTemplate(roomId: string, templateId: string, us
       .select()
       .single();
 
+    try {
+      await recordAuditLog(roomId, userId, 'approved_template', {
+        title: updated?.name || 'Bill Template',
+        amount: updated?.default_amount || updated?.rate_per_unit,
+      });
+    } catch {}
+
     return updated || { id: templateId, room_id: roomId, name: '', category: 'fixed', type: 'custom', default_amount: 0, status: 'approved' };
   } catch {
     return { id: templateId, room_id: roomId, name: '', category: 'fixed', type: 'custom', default_amount: 0, status: 'approved' };
@@ -194,17 +209,24 @@ export async function deleteBillTemplate(roomId: string, templateId: string, use
     .eq('user_id', userId)
     .single();
 
-  if (member?.role !== 'owner' && !templateId.startsWith('custom-')) {
-    const { data: template } = await supabase
-      .from('bill_templates')
-      .select('status')
-      .eq('id', templateId)
-      .single();
+  const { data: template } = await supabase
+    .from('bill_templates')
+    .select('name, default_amount, rate_per_unit, status')
+    .eq('id', templateId)
+    .single();
 
+  if (member?.role !== 'owner' && !templateId.startsWith('custom-')) {
     if (template && template.status === 'approved') {
       throw new Error('Forbidden: Only room owners can delete approved bill templates');
     }
   }
+
+  try {
+    await recordAuditLog(roomId, userId, 'deleted_template', {
+      title: template?.name || 'Bill Template',
+      amount: template?.default_amount || template?.rate_per_unit,
+    });
+  } catch {}
 
   try {
     await supabase.from('bill_templates').delete().eq('id', templateId).eq('room_id', roomId);

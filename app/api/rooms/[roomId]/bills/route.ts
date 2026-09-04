@@ -15,7 +15,7 @@ const electricitySchema = z.object({
 });
 
 const otherBillSchema = z.object({
-  type: z.enum(['rent', 'waste', 'wifi', 'custom']),
+  type: z.enum(['rent', 'waste', 'wifi']),
   name: z.string().optional(),
   month: z.string(),
   amount: moneyAmount,
