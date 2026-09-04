@@ -48,6 +48,19 @@ CREATE TABLE IF NOT EXISTS public.personal_expenses (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 3c. Personal Incomes & Loans Table (Top-Level Income & Loan Tracker)
+CREATE TABLE IF NOT EXISTS public.personal_incomes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  source TEXT NOT NULL, -- e.g. 'Salary', 'Freelance', 'Borrowed Money'
+  type TEXT NOT NULL DEFAULT 'income', -- 'income' | 'loan'
+  lender_name TEXT, -- e.g. 'Ram Prasad' (if type == 'loan')
+  amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  income_date DATE DEFAULT CURRENT_DATE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+
 
 -- 4. Settlement Periods Table
 CREATE TABLE IF NOT EXISTS public.settlement_periods (

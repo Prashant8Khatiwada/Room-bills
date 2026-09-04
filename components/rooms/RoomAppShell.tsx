@@ -110,12 +110,14 @@ export function RoomAppShell({
     }
   }
 
+  const isInsideRoom = pathname.startsWith('/rooms/');
+
   async function handleLogout() {
     await apiClient.post(api.auth.logout);
     router.push('/login');
   }
 
-  const navItems = activeRoomId ? sidebarNavItems(activeRoomId) : [];
+  const navItems = isInsideRoom && activeRoomId ? sidebarNavItems(activeRoomId) : [];
   const mobileItems = activeRoomId ? bottomNavItems(activeRoomId) : [];
   const initials = userName
     ? userName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
@@ -134,55 +136,74 @@ export function RoomAppShell({
       </div>
 
       <div className="flex flex-1 flex-col gap-0 overflow-y-auto p-2 pt-3">
-        {/* Dashboard & Personal Wallet Links — at the top like Linear */}
+        {/* Navigation Links — Top Level */}
         <div className="mb-1 space-y-0.5">
+          <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+            Main
+          </p>
           <NavItem
             href="/dashboard"
-            label="All Rooms"
-            icon={LayoutGrid}
+            label="Dashboard"
+            icon={LayoutDashboard}
             isActive={pathname === '/dashboard'}
           />
           <NavItem
-            href="/personal"
-            label="Personal Wallet"
+            href="/rooms"
+            label="All Rooms"
+            icon={LayoutGrid}
+            isActive={pathname === '/rooms'}
+          />
+          <NavItem
+            href="/personal#incomes"
+            label="Incomes & Loans"
             icon={Wallet}
-            isActive={pathname.startsWith('/personal')}
+            isActive={pathname === '/personal'}
+          />
+          <NavItem
+            href="/personal#expenses"
+            label="Personal Expenses"
+            icon={Receipt}
+            isActive={false}
           />
         </div>
 
-        <div className="my-2 border-t border-border/60" />
+        {/* Room Specific Navigation & Switcher — ONLY when inside a room route */}
+        {isInsideRoom && activeRoomId && (
+          <>
+            <div className="my-2 border-t border-border/60" />
+            <div className="px-0.5 space-y-3">
+              {/* Workspace / Room Switcher */}
+              <div>
+                <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+                  Workspace
+                </p>
+                <RoomSwitcher />
+              </div>
 
-        {/* Workspace / Room Switcher */}
-        <div className="mb-3 px-0.5">
-          <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
-            Workspace
-          </p>
-          <RoomSwitcher />
-        </div>
-
-        {/* Room Navigation */}
-        {activeRoomId && (
-          <div className="px-0.5">
-            <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
-              Room
-            </p>
-            <nav className="flex flex-col gap-0.5">
-              {navItems.map((item) => (
-                <NavItem
-                  key={item.href}
-                  href={item.href}
-                  label={item.label}
-                  icon={item.icon}
-                  isActive={pathname.startsWith(item.href)}
-                />
-              ))}
-            </nav>
-          </div>
+              {/* Room Nav Links */}
+              <div>
+                <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+                  Room Options
+                </p>
+                <nav className="flex flex-col gap-0.5">
+                  {navItems.map((item) => (
+                    <NavItem
+                      key={item.href}
+                      href={item.href}
+                      label={item.label}
+                      icon={item.icon}
+                      isActive={pathname.startsWith(item.href)}
+                    />
+                  ))}
+                </nav>
+              </div>
+            </div>
+          </>
         )}
       </div>
 
-      {/* Sidebar Bottom Left Footer: Room Settings */}
-      {activeRoomId && (
+      {/* Sidebar Bottom Left Footer: Room Settings — ONLY when inside a room */}
+      {isInsideRoom && activeRoomId && (
         <div className="border-t border-border p-2.5">
           <Link
             href={`/rooms/${activeRoomId}/settings`}
@@ -242,7 +263,7 @@ export function RoomAppShell({
             {/* Breadcrumb path */}
             <div className="flex items-center gap-1.5 text-[13px]">
               <Link
-                href="/dashboard"
+                href="/rooms"
                 className="text-muted-foreground hover:text-foreground transition-colors"
               >
                 All Rooms

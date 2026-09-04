@@ -4,233 +4,230 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/apiClient';
 import { api } from '@/lib/apiEndpoints';
-import { CreateRoomDialog } from '@/components/rooms/CreateRoomDialog';
-import { JoinRoomDialog } from '@/components/rooms/JoinRoomDialog';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { RoomAppShell } from '@/components/rooms/RoomAppShell';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Building2,
-  LogOut,
-  ArrowRight,
-  Copy,
-  Check,
-  Home,
-  Users,
-  Hash,
-  PlusCircle,
   LayoutDashboard,
+  Wallet,
+  Receipt,
+  Home,
+  TrendingUp,
+  AlertTriangle,
+  ArrowUpRight,
   Sparkles,
+  CreditCard,
+  Building2,
+  DollarSign,
 } from 'lucide-react';
-import { useState } from 'react';
-
-import { RoomAppShell } from '@/components/rooms/RoomAppShell';
+import Link from 'next/link';
 
 export default function GlobalDashboardPage() {
   const router = useRouter();
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const { data: userMe } = useQuery({
+  const { data: userMe, isLoading: userLoading } = useQuery({
     queryKey: ['me'],
     queryFn: () => apiClient.get<any>(api.auth.me),
   });
 
-  const { data: rooms, isLoading } = useQuery({
+  const { data: rooms, isLoading: roomsLoading } = useQuery({
     queryKey: ['rooms'],
     queryFn: () => apiClient.get<any[]>(api.room.list),
   });
 
-  async function handleLogout() {
-    await apiClient.post(api.auth.logout);
-    router.push('/login');
-  }
-
-  function handleCopyInvite(code: string, e: React.MouseEvent) {
-    e.stopPropagation();
-    navigator.clipboard.writeText(code);
-    setCopiedId(code);
-    setTimeout(() => setCopiedId(null), 2000);
-  }
+  const { data: personalSummary, isLoading: summaryLoading } = useQuery({
+    queryKey: ['personal-summary'],
+    queryFn: () => apiClient.get<any>('/api/user/profile'),
+  });
 
   const userName = userMe?.user?.name || userMe?.user?.email || 'User';
   const firstName = userName.split(' ')[0];
   const roomCount = rooms?.length ?? 0;
 
-  // Colour palette for room cards
-  const cardAccents = [
-    'from-orange-500/10 via-card to-card border-orange-500/30 hover:border-orange-500/60',
-    'from-violet-500/10 via-card to-card border-violet-500/30 hover:border-violet-500/60',
-    'from-sky-500/10 via-card to-card border-sky-500/30 hover:border-sky-500/60',
-    'from-emerald-500/10 via-card to-card border-emerald-500/30 hover:border-emerald-500/60',
-    'from-pink-500/10 via-card to-card border-pink-500/30 hover:border-pink-500/60',
-    'from-amber-500/10 via-card to-card border-amber-500/30 hover:border-amber-500/60',
-  ];
+  const totalIncome = personalSummary?.total_income ?? userMe?.user?.total_income ?? 0;
+  const totalLoans = personalSummary?.total_loans ?? 0;
+  const totalAllocated = personalSummary?.total_allocated ?? 0;
+  const totalPersonalExpenses = personalSummary?.total_personal_expenses ?? 0;
+  const totalSpent = totalAllocated + totalPersonalExpenses;
+  const warningLimit = personalSummary?.warning_limit ?? userMe?.user?.warning_limit ?? 0;
+  const disposableBalance = totalIncome + totalLoans - totalSpent;
+  const isOverWarning = warningLimit > 0 && totalSpent > warningLimit;
 
-  const iconBgs = [
-    'bg-orange-500',
-    'bg-violet-500',
-    'bg-sky-500',
-    'bg-emerald-500',
-    'bg-pink-500',
-    'bg-amber-500',
-  ];
+  const isLoading = userLoading || roomsLoading || summaryLoading;
 
   return (
     <RoomAppShell>
       <div className="space-y-6">
 
-        {/* Hero greeting */}
-        <div className="mb-8 sm:mb-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/60 pb-6">
+        {/* Hero Banner */}
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/60 pb-6">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-widest text-primary mb-1 flex items-center gap-1">
               <Sparkles className="size-3" />
-              Workspace Hub
+              Global Financial Control Center
             </p>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
               Welcome back, {firstName} 👋
             </h1>
             <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
-              Select a room to access its dedicated dashboard, bills, and expense reports.
+              Here is your overall personal financial summary across incomes, loans, room allocations, and individual expenses.
             </p>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <JoinRoomDialog />
-            <CreateRoomDialog />
-          </div>
-        </div>
-
-        {/* Global Summary Cards */}
-        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
-          <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
-            <div className="flex items-center gap-2 mb-1.5">
-              <div className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Link href="/rooms">
+              <Button variant="outline" size="sm" className="gap-2 text-xs">
                 <Home className="size-3.5" />
-              </div>
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Joined Rooms</span>
-            </div>
-            <p className="text-2xl font-bold text-foreground">{isLoading ? '—' : roomCount}</p>
-          </div>
-
-          <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
-            <div className="flex items-center gap-2 mb-1.5">
-              <div className="flex size-7 items-center justify-center rounded-lg bg-violet-500/10 text-violet-500">
-                <Users className="size-3.5" />
-              </div>
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Active Spaces</span>
-            </div>
-            <p className="text-2xl font-bold text-foreground">{isLoading ? '—' : roomCount}</p>
-          </div>
-
-          <div className="col-span-2 sm:col-span-1 rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
-            <div className="flex items-center gap-2 mb-1.5">
-              <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
-                <Hash className="size-3.5" />
-              </div>
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Account Profile</span>
-            </div>
-            <p className="text-sm font-bold text-foreground truncate">{userName}</p>
+                All Rooms ({roomCount})
+              </Button>
+            </Link>
+            <Link href="/personal">
+              <Button size="sm" className="gap-2 text-xs">
+                <Wallet className="size-3.5" />
+                Manage Personal Wallet
+              </Button>
+            </Link>
           </div>
         </div>
 
-        {/* Section header */}
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
-              <LayoutDashboard className="size-4 text-primary" />
-              Your Rooms
-            </h2>
-            <p className="text-xs text-muted-foreground">Click any room card below to view its live room dashboard</p>
-          </div>
-        </div>
-
-        {/* Room grid */}
-        {isLoading ? (
-          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-48 rounded-2xl" />
-            ))}
-          </div>
-        ) : !rooms || rooms.length === 0 ? (
-          /* Empty state */
-          <div className="flex flex-col items-center justify-center py-16 text-center rounded-3xl border border-dashed border-border p-8">
-            <div className="flex size-16 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-4">
-              <PlusCircle className="size-8" />
+        {/* Warning Alert if over spending limit */}
+        {isOverWarning && (
+          <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-600 dark:text-amber-400">
+            <AlertTriangle className="size-5 shrink-0" />
+            <div className="flex-1 text-xs sm:text-sm">
+              <p className="font-semibold">Spending Warning Limit Exceeded!</p>
+              <p className="text-muted-foreground">
+                Your combined spending (${totalSpent.toFixed(2)}) has passed your warning limit threshold (${warningLimit.toFixed(2)}).
+              </p>
             </div>
-            <h3 className="text-lg font-bold text-foreground mb-1">No rooms joined yet</h3>
-            <p className="text-xs sm:text-sm text-muted-foreground max-w-xs mb-6">
-              Create your room or enter an invite code to start tracking shared expenses with roomies.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <CreateRoomDialog />
-              <JoinRoomDialog />
-            </div>
-          </div>
-        ) : (
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            {rooms.map((r, idx) => {
-              const accent = cardAccents[idx % cardAccents.length];
-              const iconBg = iconBgs[idx % iconBgs.length];
-              return (
-                <button
-                  key={r.id}
-                  type="button"
-                  className={`group relative text-left w-full rounded-2xl border bg-gradient-to-br ${accent} p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary`}
-                  onClick={() => router.push(`/rooms/${r.id}/dashboard`)}
-                >
-                  {/* Room icon + name */}
-                  <div className="flex items-start gap-3 mb-4">
-                    <div className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${iconBg} text-white font-bold text-base shadow-sm`}>
-                      {r.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1 pt-0.5">
-                      <h3 className="font-bold text-foreground text-base leading-tight truncate group-hover:text-primary transition-colors">
-                        {r.name}
-                      </h3>
-                      <span className="text-[11px] text-muted-foreground font-medium">Click to open dashboard</span>
-                    </div>
-                  </div>
-
-                  {/* Invite code */}
-                  {r.invite_code && (
-                    <div
-                      className="flex items-center justify-between rounded-xl bg-background/80 backdrop-blur-sm border border-border/50 px-3 py-2 mb-4"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Invite Code
-                      </span>
-                      <button
-                        type="button"
-                        onClick={(e) => handleCopyInvite(r.invite_code, e)}
-                        className="flex items-center gap-1.5 font-mono font-bold text-[12px] text-foreground hover:text-primary transition-colors"
-                        title="Copy invite code"
-                      >
-                        {r.invite_code}
-                        {copiedId === r.invite_code ? (
-                          <Check className="size-3 text-emerald-500 shrink-0" />
-                        ) : (
-                          <Copy className="size-3 text-muted-foreground shrink-0" />
-                        )}
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Footer row */}
-                  <div className="flex items-center justify-between border-t border-border/40 pt-3">
-                    <span className="text-[12px] font-semibold text-primary group-hover:underline">
-                      View Room Dashboard
-                    </span>
-                    <div className="flex size-7 items-center justify-center rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all">
-                      <ArrowRight className="size-3.5" />
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+            <Link href="/personal">
+              <Button variant="outline" size="sm" className="border-amber-500/40 hover:bg-amber-500/20 text-xs">
+                Adjust Wallet
+              </Button>
+            </Link>
           </div>
         )}
+
+        {/* Core Financial Metrics Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          
+          {/* Total Incomes */}
+          <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Total Income</span>
+              <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+                <TrendingUp className="size-4" />
+              </div>
+            </div>
+            <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+              {isLoading ? <Skeleton className="h-8 w-24" /> : `$${totalIncome.toFixed(2)}`}
+            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">Personal income sources</p>
+          </div>
+
+          {/* Active Loans */}
+          <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Active Loans</span>
+              <div className="flex size-7 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
+                <CreditCard className="size-4" />
+              </div>
+            </div>
+            <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+              {isLoading ? <Skeleton className="h-8 w-24" /> : `$${totalLoans.toFixed(2)}`}
+            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">Borrowed funds tracker</p>
+          </div>
+
+          {/* Room Allocations */}
+          <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Room Allocations</span>
+              <div className="flex size-7 items-center justify-center rounded-lg bg-sky-500/10 text-sky-500">
+                <Building2 className="size-4" />
+              </div>
+            </div>
+            <p className="text-2xl font-bold text-sky-600 dark:text-sky-400">
+              {isLoading ? <Skeleton className="h-8 w-24" /> : `$${totalAllocated.toFixed(2)}`}
+            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">Committed to rooms</p>
+          </div>
+
+          {/* Net Disposable Balance */}
+          <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Disposable Balance</span>
+              <div className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <DollarSign className="size-4" />
+              </div>
+            </div>
+            <p className={`text-2xl font-bold ${disposableBalance >= 0 ? 'text-foreground' : 'text-destructive'}`}>
+              {isLoading ? <Skeleton className="h-8 w-24" /> : `$${disposableBalance.toFixed(2)}`}
+            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">Available liquidity</p>
+          </div>
+
+        </div>
+
+        {/* Quick Navigation Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+
+          {/* All Rooms Card */}
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm flex flex-col justify-between space-y-4">
+            <div>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Home className="size-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-foreground text-base">All Rooms Workspace</h3>
+                  <p className="text-xs text-muted-foreground">Manage your shared room spaces, invite roomies & track bills</p>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                You are currently associated with <strong className="text-foreground">{roomCount} room{roomCount === 1 ? '' : 's'}</strong>.
+              </p>
+            </div>
+
+            <Link href="/rooms" className="w-full">
+              <Button variant="outline" className="w-full justify-between text-xs">
+                <span>View All Rooms</span>
+                <ArrowUpRight className="size-4 text-primary" />
+              </Button>
+            </Link>
+          </div>
+
+          {/* Personal Financial Wallet Card */}
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm flex flex-col justify-between space-y-4">
+            <div>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="flex size-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-500">
+                  <Wallet className="size-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-foreground text-base">Personal Wallet & Expenses</h3>
+                  <p className="text-xs text-muted-foreground">Manage incomes, loan records, warning limits & personal bills</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-xs border-t border-border/50 pt-3">
+                <span className="text-muted-foreground">Personal Expenses Logged:</span>
+                <span className="font-bold text-foreground">${totalPersonalExpenses.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <Link href="/personal" className="w-full">
+              <Button variant="outline" className="w-full justify-between text-xs">
+                <span>Open Income & Loan Wallet</span>
+                <ArrowUpRight className="size-4 text-violet-500" />
+              </Button>
+            </Link>
+          </div>
+
+        </div>
+
       </div>
     </RoomAppShell>
   );
 }
+
+

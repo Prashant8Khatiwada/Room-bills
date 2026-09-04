@@ -8,6 +8,8 @@ export const api = {
   user: {
     profile: '/api/user/profile',
     personalExpenses: '/api/user/personal-expenses',
+    personalIncomes: '/api/user/personal-incomes',
+    deletePersonalIncome: (id: string) => `/api/user/personal-incomes/${id}`,
   },
   room: {
     create: '/api/rooms',
