@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/apiClient';
 import { api } from '@/lib/apiEndpoints';
 import { RoomSwitcher } from '@/components/rooms/RoomSwitcher';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,6 +35,7 @@ export default function GlobalDashboardPage() {
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <h1 className="text-2xl font-bold tracking-tight text-primary">Room Expense Tracker</h1>
           <div className="flex items-center space-x-4">
+            <ThemeToggle />
             <span className="text-sm font-medium text-foreground">{userMe?.user?.name}</span>
             <Button variant="outline" size="sm" onClick={handleLogout}>
               Logout

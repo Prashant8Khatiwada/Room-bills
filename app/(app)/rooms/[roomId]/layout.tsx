@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/services/auth';
 import { assertRoomMember } from '@/lib/services/rooms';
 import { CurrentRoomProvider } from '@/components/rooms/CurrentRoomProvider';
 import { RoomSwitcher } from '@/components/rooms/RoomSwitcher';
+import { RoomRealtimeWatcher } from '@/components/rooms/RoomRealtimeWatcher';
 import Link from 'next/link';
 
 export default async function RoomShellLayout({
@@ -27,6 +28,7 @@ export default async function RoomShellLayout({
 
   return (
     <CurrentRoomProvider roomId={roomId}>
+      <RoomRealtimeWatcher />
       <div className="min-h-screen bg-background">
         <header className="border-b border-border bg-card px-6 py-4">
           <div className="mx-auto flex max-w-6xl items-center justify-between">
