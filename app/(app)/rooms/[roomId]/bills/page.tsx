@@ -54,6 +54,8 @@ function BillsPageContent() {
   const [month, setMonth] = useState(new Date().toISOString().split('T')[0]);
   const [customAmount, setCustomAmount] = useState('');
   const [paidBy, setPaidBy] = useState('');
+  const [splitMembers, setSplitMembers] = useState<Record<string, boolean>>({});
+  const [customSplitAmounts, setCustomSplitAmounts] = useState<Record<string, string>>({});
 
   // Bill Template Form State
   const [newTemplateName, setNewTemplateName] = useState('');
@@ -259,6 +261,7 @@ function BillsPageContent() {
     setCustomName('');
     setCustomAmount('');
     setElectricityUnits({ prev: '', curr: '', rate: '12' });
+    setSplitMembers({});
     setDropdownOpen(false);
   }
 
@@ -279,6 +282,15 @@ function BillsPageContent() {
     const curr = Number(electricityUnits.curr) || 0;
     const rate = Number(meteredItem?.rate_per_unit) || 12;
 
+    const selectedSplitUserIds = Object.keys(splitMembers).filter((id) => splitMembers[id]);
+    const customSplitsPayload: Record<string, number> = {};
+    Object.entries(customSplitAmounts).forEach(([mId, val]) => {
+      const num = Number(val);
+      if (mId !== paidBy && !isNaN(num) && num > 0) {
+        customSplitsPayload[mId] = num;
+      }
+    });
+
     await apiClient.post(api.bill.create(roomId), {
       type: meteredItem && selectedTemplateItems.length === 1 ? 'electricity' : 'rent',
       name: finalTitle,
@@ -288,6 +300,8 @@ function BillsPageContent() {
       current_unit: meteredItem && selectedTemplateItems.length === 1 ? curr : undefined,
       rate_per_unit: meteredItem && selectedTemplateItems.length === 1 ? rate : undefined,
       paid_by: paidBy,
+      split_among: selectedSplitUserIds.length > 0 ? selectedSplitUserIds : undefined,
+      custom_splits: Object.keys(customSplitsPayload).length > 0 ? customSplitsPayload : undefined,
     });
 
     queryClient.invalidateQueries({ queryKey: ['bills', roomId] });
@@ -301,6 +315,15 @@ function BillsPageContent() {
   function handleCustomSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!paidBy || !customName) return;
+
+    const selectedSplitUserIds = Object.keys(splitMembers).filter((id) => splitMembers[id]);
+    const customSplitsPayload: Record<string, number> = {};
+    Object.entries(customSplitAmounts).forEach(([mId, val]) => {
+      const num = Number(val);
+      if (mId !== paidBy && !isNaN(num) && num > 0) {
+        customSplitsPayload[mId] = num;
+      }
+    });
 
     if (customCategory === 'metered') {
       const prev = Number(electricityUnits.prev) || 0;
@@ -317,6 +340,8 @@ function BillsPageContent() {
         rate_per_unit: rate,
         amount,
         paid_by: paidBy,
+        split_among: selectedSplitUserIds.length > 0 ? selectedSplitUserIds : undefined,
+        custom_splits: Object.keys(customSplitsPayload).length > 0 ? customSplitsPayload : undefined,
       });
     } else {
       createBillMutation.mutate({
@@ -325,6 +350,8 @@ function BillsPageContent() {
         month,
         amount: Number(customAmount),
         paid_by: paidBy,
+        split_among: selectedSplitUserIds.length > 0 ? selectedSplitUserIds : undefined,
+        custom_splits: Object.keys(customSplitsPayload).length > 0 ? customSplitsPayload : undefined,
       });
     }
   }
@@ -639,6 +666,62 @@ function BillsPageContent() {
                       )}
                     </div>
 
+                    {/* Split Among Members Selection */}
+                    <div>
+                      <label className="text-xs font-semibold text-foreground block mb-1.5 flex items-center justify-between">
+                        <span>Split Shares with Roommates</span>
+                        <span className="text-[10px] text-muted-foreground font-normal">
+                          Payer automatically covers remaining balance
+                        </span>
+                      </label>
+                      <div className="space-y-2 rounded-lg border border-border/80 bg-muted/20 p-2.5">
+                        {members
+                          ?.filter((m) => m.users.id !== paidBy)
+                          .map((m) => {
+                            const isSelected = splitMembers[m.users.id] ?? true;
+                            return (
+                              <div key={m.users.id} className="flex items-center justify-between gap-2 bg-background p-2 rounded-md border border-border/60">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSplitMembers((prev) => ({
+                                      ...prev,
+                                      [m.users.id]: !isSelected,
+                                    }))
+                                  }
+                                  className="flex items-center gap-2 text-xs font-medium cursor-pointer"
+                                >
+                                  <span className={`size-3.5 rounded-xs border flex items-center justify-center ${
+                                    isSelected ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground/40'
+                                  }`}>
+                                    {isSelected && <Check className="size-2.5 stroke-[3]" />}
+                                  </span>
+                                  <span className="font-semibold text-foreground">{m.users.name}</span>
+                                </button>
+
+                                {isSelected && (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[10px] text-muted-foreground font-mono">NPR</span>
+                                    <Input
+                                      type="number"
+                                      placeholder="Auto equal"
+                                      value={customSplitAmounts[m.users.id] || ''}
+                                      onChange={(e) =>
+                                        setCustomSplitAmounts((prev) => ({
+                                          ...prev,
+                                          [m.users.id]: e.target.value,
+                                        }))
+                                      }
+                                      className="h-7 w-24 text-xs font-mono"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+
                     <div>
                       <label className="text-xs font-semibold text-foreground block mb-1.5">Month Date</label>
                       <Input type="date" value={month} onChange={(e) => setMonth(e.target.value)} required className="h-9 text-xs" />
@@ -780,6 +863,62 @@ function BillsPageContent() {
                       )}
                     </div>
 
+                    {/* Split Among Members Selection */}
+                    <div>
+                      <label className="text-xs font-semibold text-foreground block mb-1.5 flex items-center justify-between">
+                        <span>Split Shares with Roommates</span>
+                        <span className="text-[10px] text-muted-foreground font-normal">
+                          Payer automatically covers remaining balance
+                        </span>
+                      </label>
+                      <div className="space-y-2 rounded-lg border border-border/80 bg-muted/20 p-2.5">
+                        {members
+                          ?.filter((m) => m.users.id !== paidBy)
+                          .map((m) => {
+                            const isSelected = splitMembers[m.users.id] ?? true;
+                            return (
+                              <div key={m.users.id} className="flex items-center justify-between gap-2 bg-background p-2 rounded-md border border-border/60">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSplitMembers((prev) => ({
+                                      ...prev,
+                                      [m.users.id]: !isSelected,
+                                    }))
+                                  }
+                                  className="flex items-center gap-2 text-xs font-medium cursor-pointer"
+                                >
+                                  <span className={`size-3.5 rounded-xs border flex items-center justify-center ${
+                                    isSelected ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground/40'
+                                  }`}>
+                                    {isSelected && <Check className="size-2.5 stroke-[3]" />}
+                                  </span>
+                                  <span className="font-semibold text-foreground">{m.users.name}</span>
+                                </button>
+
+                                {isSelected && (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[10px] text-muted-foreground font-mono">NPR</span>
+                                    <Input
+                                      type="number"
+                                      placeholder="Auto equal"
+                                      value={customSplitAmounts[m.users.id] || ''}
+                                      onChange={(e) =>
+                                        setCustomSplitAmounts((prev) => ({
+                                          ...prev,
+                                          [m.users.id]: e.target.value,
+                                        }))
+                                      }
+                                      className="h-7 w-24 text-xs font-mono"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+
                     <div>
                       <label className="text-xs font-semibold text-foreground block mb-1.5">Month Date</label>
                       <Input type="date" value={month} onChange={(e) => setMonth(e.target.value)} required className="h-9 text-xs" />
@@ -827,10 +966,18 @@ function BillsPageContent() {
                 type={b.type}
                 amount={b.amount}
                 month={b.month}
-                paidByName={b.users?.name || b.users?.email?.split('@')[0] || 'Member'}
+                paidByName={b.paid_by_user?.name || b.users?.name || b.users?.email?.split('@')[0] || 'Member'}
                 prevUnit={b.prev_unit}
                 currentUnit={b.current_unit}
                 ratePerUnit={b.rate_per_unit}
+                billSplits={b.bill_splits?.map((s: any) => {
+                  const m = members?.find((mem) => mem.users.id === s.user_id);
+                  return {
+                    user_id: s.user_id,
+                    share: s.share,
+                    user_name: m?.users?.name || (s.user_id === currentUserId ? 'You' : 'Member'),
+                  };
+                })}
                 canDelete={b.paid_by === currentUserId || isOwner}
                 onDelete={() => deleteLoggedBillMutation.mutate(b.id)}
               />

@@ -12,6 +12,8 @@ const electricitySchema = z.object({
   current_unit: z.number().nonnegative(),
   rate_per_unit: z.number().positive(),
   paid_by: z.string().uuid(),
+  split_among: z.array(z.string().uuid()).optional(),
+  custom_splits: z.record(z.string().uuid(), z.number().nonnegative()).optional(),
 });
 
 const otherBillSchema = z.object({
@@ -20,6 +22,8 @@ const otherBillSchema = z.object({
   month: z.string(),
   amount: moneyAmount,
   paid_by: z.string().uuid(),
+  split_among: z.array(z.string().uuid()).optional(),
+  custom_splits: z.record(z.string().uuid(), z.number().nonnegative()).optional(),
 });
 
 const createBillSchema = z.union([electricitySchema, otherBillSchema]).superRefine((data, ctx) => {

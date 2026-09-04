@@ -16,6 +16,7 @@ export interface BillCardProps {
   prevUnit?: number;
   currentUnit?: number;
   ratePerUnit?: number;
+  billSplits?: Array<{ user_id: string; share: number; user_name?: string }>;
   canDelete?: boolean;
   isDeleting?: boolean;
   onDelete?: () => void;
@@ -31,6 +32,7 @@ export function BillCard({
   prevUnit,
   currentUnit,
   ratePerUnit,
+  billSplits,
   canDelete,
   isDeleting,
   onDelete,
@@ -68,11 +70,26 @@ export function BillCard({
             )}
           </div>
         </CardHeader>
-        <CardContent className="text-xs space-y-1 text-muted-foreground pt-0">
+        <CardContent className="text-xs space-y-2 text-muted-foreground pt-0">
           <div className="text-[11px]">Month: <span className="font-semibold text-foreground">{month}</span></div>
           {type === 'electricity' && prevUnit !== undefined && currentUnit !== undefined && (
-            <div className="text-[11px] font-mono bg-sky-500/10 border border-sky-500/20 text-sky-600 rounded-md px-2 py-1 inline-block mt-1">
+            <div className="text-[11px] font-mono bg-sky-500/10 border border-sky-500/20 text-sky-600 rounded-md px-2 py-1 inline-block">
               Units: {prevUnit} → {currentUnit} (@ NPR {ratePerUnit}/unit)
+            </div>
+          )}
+
+          {/* Split Shares Breakdown */}
+          {billSplits && billSplits.length > 0 && (
+            <div className="border-t border-border/40 pt-2 mt-2">
+              <p className="text-[10px] font-bold text-foreground mb-1 uppercase tracking-wider">Split Breakdown ({billSplits.length} members)</p>
+              <div className="flex flex-wrap gap-1.5">
+                {billSplits.map((s, idx) => (
+                  <span key={s.user_id || idx} className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-0.5 text-[10px] font-medium text-foreground border border-border/50">
+                    <span>{s.user_name || 'Member'}:</span>
+                    <strong className="font-mono text-primary">NPR {s.share.toLocaleString()}</strong>
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </CardContent>

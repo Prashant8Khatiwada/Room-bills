@@ -12,6 +12,8 @@ export interface CreateBillInput {
   current_unit?: number;
   rate_per_unit?: number;
   paid_by: string;
+  split_among?: string[]; // Custom member IDs to split among (or custom shares map)
+  custom_splits?: Record<string, number>; // Explicit share per user ID
   idempotency_key?: string;
 }
 
@@ -106,14 +108,34 @@ export async function createBill(roomId: string, userId: string, data: CreateBil
     throw new Error(`Failed to create bill: ${billError?.message}`);
   }
 
-  // Fetch current members to calculate splits
-  const { data: members } = await supabase
-    .from('room_members')
-    .select('user_id')
-    .eq('room_id', roomId);
+  let splits: Record<string, number> = {};
 
-  const memberIds = members?.map((m) => m.user_id) || [data.paid_by];
-  const splits = calculateEqualSplits(finalAmount, data.paid_by, memberIds);
+  if (data.custom_splits && Object.keys(data.custom_splits).length > 0) {
+    // Explicit custom amount specified per member
+    let otherSum = 0;
+    Object.entries(data.custom_splits).forEach(([mId, share]) => {
+      if (mId !== data.paid_by) {
+        const val = Math.max(0, Number(share) || 0);
+        splits[mId] = val;
+        otherSum += val;
+      }
+    });
+    // Payer pays the remaining amount (Total - Other Shares)
+    splits[data.paid_by] = Number(Math.max(0, finalAmount - otherSum).toFixed(2));
+  } else {
+    // Fetch target members for splits calculation (always include payer in final calculation)
+    let targetMemberIds: string[] = [];
+    if (data.split_among && data.split_among.length > 0) {
+      targetMemberIds = Array.from(new Set([...data.split_among, data.paid_by]));
+    } else {
+      const { data: members } = await supabase
+        .from('room_members')
+        .select('user_id')
+        .eq('room_id', roomId);
+      targetMemberIds = members?.map((m) => m.user_id) || [data.paid_by];
+    }
+    splits = calculateEqualSplits(finalAmount, data.paid_by, targetMemberIds);
+  }
 
   const splitRows = Object.entries(splits).map(([mId, share]) => ({
     bill_id: bill.id,
