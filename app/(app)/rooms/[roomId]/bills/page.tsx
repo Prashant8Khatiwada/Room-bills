@@ -1,7 +1,8 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useCurrentRoom } from '@/components/rooms/CurrentRoomProvider';
 import { apiClient } from '@/lib/apiClient';
 import { api } from '@/lib/apiEndpoints';
@@ -14,11 +15,24 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Lock, Plus, Receipt, Check, FileText, Clock, Trash2, ChevronDown, X, Layers, Zap } from 'lucide-react';
+import { Lock, Plus, Receipt, Check, FileText, Clock, Trash2, ChevronDown, X, Layers, Zap, ShieldCheck } from 'lucide-react';
 
-export default function BillsPage() {
+function BillsPageContent() {
   const { roomId, userRole } = useCurrentRoom();
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // Derived Page View Tab from searchParams: 'logged' | 'templates'
+  const pageTab = searchParams.get('tab') === 'templates' ? 'templates' : 'logged';
+
+  function setPageTab(tab: 'logged' | 'templates') {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', tab);
+    router.push(`/rooms/${roomId}/bills?${params.toString()}`);
+  }
+
+  // Record Bill Modal State
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'saved' | 'custom'>('saved');
 
@@ -37,10 +51,10 @@ export default function BillsPage() {
   const [customAmount, setCustomAmount] = useState('');
   const [paidBy, setPaidBy] = useState('');
 
-  // Manage Templates Dialog State
-  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  // Bill Template Form State
   const [newTemplateName, setNewTemplateName] = useState('');
   const [newTemplateAmount, setNewTemplateAmount] = useState('');
+  const [newTemplateType, setNewTemplateType] = useState<'rent' | 'electricity' | 'waste' | 'wifi' | 'custom'>('custom');
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -148,7 +162,6 @@ export default function BillsPage() {
     mutationFn: (data: any) => apiClient.post(api.bill.templates(roomId), data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bill-templates', roomId] });
-      setTemplateDialogOpen(false);
       setNewTemplateName('');
       setNewTemplateAmount('');
     },
@@ -232,380 +245,496 @@ export default function BillsPage() {
     });
   }
 
+  function handleProposeTemplate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newTemplateName || !newTemplateAmount) return;
+    createTemplateMutation.mutate({
+      name: newTemplateName,
+      type: newTemplateType,
+      defaultAmount: Number(newTemplateAmount),
+    });
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 pb-4">
+
+      {/* Page Header & View Tab Selector */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 pb-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">Room Bills</h2>
-          <p className="text-sm text-muted-foreground">Manage recurring monthly room bills with multi-select automatic pricing</p>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[11px] font-semibold uppercase tracking-widest text-primary">
+              Room Finance
+            </span>
+            {isOwner && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-500">
+                <ShieldCheck className="size-3" />
+                Room Owner Admin
+              </span>
+            )}
+          </div>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">Room Bills & Templates</h2>
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            Log monthly recurring room bills or manage saved bill templates.
+          </p>
         </div>
 
+        {/* View Switcher Pills */}
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setTemplateDialogOpen(true)}
-            className="h-9 gap-1.5 text-xs font-medium"
-          >
-            <FileText className="size-3.5 text-primary" />
-            <span>Manage Bill Templates</span>
-          </Button>
+          <div className="flex rounded-xl bg-muted p-1 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setPageTab('logged')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${
+                pageTab === 'logged'
+                  ? 'bg-background text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Logged Bills ({bills?.length || 0})
+            </button>
+            <button
+              type="button"
+              onClick={() => setPageTab('templates')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${
+                pageTab === 'templates'
+                  ? 'bg-background text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Bill Templates ({approvedTemplates.length})
+            </button>
+          </div>
 
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger render={
-              <Button className="h-9 bg-primary hover:bg-primary/90 gap-1.5 text-xs font-semibold shadow-sm">
-                <Plus className="size-4" /> Add Room Bill
-              </Button>
-            } />
-            <DialogContent className="max-w-md p-6">
-              <DialogHeader>
-                <DialogTitle className="text-lg font-bold">Pay & Record Room Bills</DialogTitle>
-              </DialogHeader>
+          {pageTab === 'logged' && (
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger render={
+                <Button className="h-9 bg-primary hover:bg-primary/90 gap-1.5 text-xs font-semibold shadow-sm shrink-0">
+                  <Plus className="size-4" /> Add Room Bill
+                </Button>
+              } />
+              <DialogContent className="max-w-md p-6">
+                <DialogHeader>
+                  <DialogTitle className="text-lg font-bold">Pay & Record Room Bills</DialogTitle>
+                </DialogHeader>
 
-              {/* Segmented Control Tabs */}
-              <div className="grid grid-cols-2 rounded-lg bg-muted p-1 text-xs font-medium">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('saved')}
-                  className={`py-1.5 rounded-md transition-all ${
-                    activeTab === 'saved'
-                      ? 'bg-background text-foreground font-semibold shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  Multi-Select Saved Bills
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('custom')}
-                  className={`py-1.5 rounded-md transition-all ${
-                    activeTab === 'custom'
-                      ? 'bg-background text-foreground font-semibold shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  Manual Custom Entry
-                </button>
-              </div>
+                {/* Segmented Control Tabs */}
+                <div className="grid grid-cols-2 rounded-lg bg-muted p-1 text-xs font-medium">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('saved')}
+                    className={`py-1.5 rounded-md transition-all ${
+                      activeTab === 'saved'
+                        ? 'bg-background text-foreground font-semibold shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Multi-Select Saved Bills
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('custom')}
+                    className={`py-1.5 rounded-md transition-all ${
+                      activeTab === 'custom'
+                        ? 'bg-background text-foreground font-semibold shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Manual Custom Entry
+                  </button>
+                </div>
 
-              {/* Mode A: Multi-Select Dropdown Field */}
-              {activeTab === 'saved' ? (
-                <form onSubmit={handleMultiSelectSubmit} className="space-y-4 pt-1">
-                  
-                  {/* Multi-Select Field */}
-                  <div className="relative" ref={dropdownRef}>
-                    <label className="text-xs font-semibold text-foreground block mb-1.5">
-                      Select Bills to Pay
-                    </label>
+                {/* Mode A: Multi-Select Dropdown Field */}
+                {activeTab === 'saved' ? (
+                  <form onSubmit={handleMultiSelectSubmit} className="space-y-4 pt-1">
+                    
+                    {/* Multi-Select Field */}
+                    <div className="relative" ref={dropdownRef}>
+                      <label className="text-xs font-semibold text-foreground block mb-1.5">
+                        Select Bills to Pay
+                      </label>
 
-                    {/* Trigger Box */}
-                    <div
-                      onClick={() => setDropdownOpen(!dropdownOpen)}
-                      className="flex min-h-10 w-full flex-wrap items-center justify-between gap-1.5 rounded-lg border border-input bg-background px-3 py-2 text-xs cursor-pointer hover:border-primary transition-all"
-                    >
-                      <div className="flex flex-wrap items-center gap-1.5 min-w-0 flex-1">
-                        {selectedTemplateItems.length === 0 ? (
-                          <span className="text-muted-foreground">
-                            Choose bill templates (Rent, WiFi, Waste...)
-                          </span>
-                        ) : (
-                          selectedTemplateItems.map((t) => (
-                            <span
-                              key={t.id}
-                              className="inline-flex items-center gap-1 rounded-md bg-primary/10 border border-primary/20 px-2 py-0.5 text-[11px] font-semibold text-primary"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleTemplate(t.id);
-                              }}
-                            >
-                              {t.name}
-                              <X className="size-3 hover:text-destructive transition-colors" />
+                      {/* Trigger Box */}
+                      <div
+                        onClick={() => setDropdownOpen(!dropdownOpen)}
+                        className="flex min-h-10 w-full flex-wrap items-center justify-between gap-1.5 rounded-lg border border-input bg-background px-3 py-2 text-xs cursor-pointer hover:border-primary transition-all"
+                      >
+                        <div className="flex flex-wrap items-center gap-1.5 min-w-0 flex-1">
+                          {selectedTemplateItems.length === 0 ? (
+                            <span className="text-muted-foreground">
+                              Choose bill templates (Rent, WiFi, Waste...)
                             </span>
-                          ))
-                        )}
-                      </div>
-                      <ChevronDown className={`size-4 text-muted-foreground shrink-0 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
-                    </div>
-
-                    {/* Dropdown Menu Popover */}
-                    {dropdownOpen && (
-                      <div className="absolute z-50 mt-1 w-full rounded-xl border border-border bg-card p-1 shadow-lg max-h-60 overflow-y-auto">
-                        <p className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/40 mb-1">
-                          Available Templates ({approvedTemplates.length})
-                        </p>
-                        {approvedTemplates.length === 0 ? (
-                          <div className="p-3 text-center text-xs text-muted-foreground">
-                            No saved templates found. Create templates or use manual entry.
-                          </div>
-                        ) : (
-                          approvedTemplates.map((t) => {
-                            const isChecked = !!selectedTemplates[t.id];
-                            return (
-                              <div
+                          ) : (
+                            selectedTemplateItems.map((t) => (
+                              <span
                                 key={t.id}
-                                onClick={() => toggleTemplate(t.id)}
-                                className={`flex items-center justify-between rounded-lg px-2.5 py-2 text-xs cursor-pointer transition-colors ${
-                                  isChecked ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-accent text-foreground font-medium'
-                                }`}
+                                className="inline-flex items-center gap-1 rounded-md bg-primary/10 border border-primary/20 px-2 py-0.5 text-[11px] font-semibold text-primary"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleTemplate(t.id);
+                                }}
                               >
-                                <div className="flex items-center space-x-2.5">
-                                  <Checkbox checked={isChecked} onCheckedChange={() => {}} />
-                                  <span>{t.name}</span>
+                                {t.name}
+                                <X className="size-3 hover:text-destructive transition-colors" />
+                              </span>
+                            ))
+                          )}
+                        </div>
+                        <ChevronDown className={`size-4 text-muted-foreground shrink-0 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+                      </div>
+
+                      {/* Dropdown Menu Popover */}
+                      {dropdownOpen && (
+                        <div className="absolute z-50 mt-1 w-full rounded-xl border border-border bg-card p-1 shadow-lg max-h-60 overflow-y-auto">
+                          <p className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/40 mb-1">
+                            Available Templates ({approvedTemplates.length})
+                          </p>
+                          {approvedTemplates.length === 0 ? (
+                            <div className="p-3 text-center text-xs text-muted-foreground">
+                              No saved templates found. Create templates in the catalog tab.
+                            </div>
+                          ) : (
+                            approvedTemplates.map((t) => {
+                              const isChecked = !!selectedTemplates[t.id];
+                              return (
+                                <div
+                                  key={t.id}
+                                  onClick={() => toggleTemplate(t.id)}
+                                  className={`flex items-center justify-between rounded-lg px-2.5 py-2 text-xs cursor-pointer transition-colors ${
+                                    isChecked ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-accent text-foreground font-medium'
+                                  }`}
+                                >
+                                  <div className="flex items-center space-x-2.5">
+                                    <Checkbox checked={isChecked} onCheckedChange={() => {}} />
+                                    <span>{t.name}</span>
+                                  </div>
+                                  <span className="font-mono text-[11px] font-bold">
+                                    {t.type === 'electricity' ? 'Meter Rate' : `NPR ${t.default_amount.toLocaleString()}`}
+                                  </span>
                                 </div>
-                                <span className="font-mono text-[11px] font-bold">
-                                  {t.type === 'electricity' ? 'Meter Rate' : `NPR ${t.default_amount.toLocaleString()}`}
-                                </span>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Electricity Meter Input Fields */}
-                  {isElectricitySelected && (
-                    <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-3 space-y-2">
-                      <p className="text-xs font-bold text-sky-600 flex items-center gap-1">
-                        <Zap className="size-3.5" />
-                        Electricity Meter Readings
-                      </p>
-                      <div className="grid grid-cols-3 gap-2 text-xs">
-                        <div>
-                          <label className="text-[10px] font-medium text-muted-foreground">Prev Unit</label>
-                          <Input
-                            type="number"
-                            placeholder="1000"
-                            value={electricityUnits.prev}
-                            onChange={(e) =>
-                              setElectricityUnits((prev) => ({ ...prev, prev: e.target.value }))
-                            }
-                            required
-                            className="h-8 text-xs"
-                          />
+                              );
+                            })
+                          )}
                         </div>
-                        <div>
-                          <label className="text-[10px] font-medium text-muted-foreground">Curr Unit</label>
-                          <Input
-                            type="number"
-                            placeholder="1120"
-                            value={electricityUnits.curr}
-                            onChange={(e) =>
-                              setElectricityUnits((prev) => ({ ...prev, curr: e.target.value }))
-                            }
-                            required
-                            className="h-8 text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-medium text-muted-foreground">Rate/Unit</label>
-                          <Input
-                            type="number"
-                            value={electricityUnits.rate}
-                            onChange={(e) =>
-                              setElectricityUnits((prev) => ({ ...prev, rate: e.target.value }))
-                            }
-                            required
-                            className="h-8 text-xs"
-                          />
-                        </div>
-                      </div>
+                      )}
                     </div>
-                  )}
 
-                  {/* Dynamic Calculated Total Card */}
-                  <div className="flex items-center justify-between rounded-lg bg-card border border-border/80 px-3.5 py-3 shadow-xs">
-                    <span className="text-xs font-semibold text-muted-foreground">
-                      Calculated Total
-                    </span>
-                    <span className="font-mono text-base font-extrabold text-primary">
-                      NPR {dynamicTotal.toLocaleString()}
-                    </span>
-                  </div>
-
-                  {/* Paid By Field */}
-                  <div>
-                    <label className="text-xs font-semibold text-foreground block mb-1.5">Paid By</label>
-                    {!isOwner ? (
-                      <div className="flex h-9 w-full items-center justify-between rounded-lg border border-border bg-muted/30 px-3 text-xs font-medium text-foreground">
-                        <span>{currentPaidByName} (You)</span>
-                        <Lock className="size-3.5 text-muted-foreground/70" />
+                    {/* Electricity Meter Inputs */}
+                    {isElectricitySelected && (
+                      <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-3 space-y-2">
+                        <p className="text-xs font-bold text-sky-600 flex items-center gap-1">
+                          <Zap className="size-3.5" />
+                          Electricity Meter Readings
+                        </p>
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          <div>
+                            <label className="text-[10px] font-medium text-muted-foreground">Prev Unit</label>
+                            <Input
+                              type="number"
+                              placeholder="1000"
+                              value={electricityUnits.prev}
+                              onChange={(e) =>
+                                setElectricityUnits((prev) => ({ ...prev, prev: e.target.value }))
+                              }
+                              required
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-medium text-muted-foreground">Curr Unit</label>
+                            <Input
+                              type="number"
+                              placeholder="1120"
+                              value={electricityUnits.curr}
+                              onChange={(e) =>
+                                setElectricityUnits((prev) => ({ ...prev, curr: e.target.value }))
+                              }
+                              required
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-medium text-muted-foreground">Rate/Unit</label>
+                            <Input
+                              type="number"
+                              value={electricityUnits.rate}
+                              onChange={(e) =>
+                                setElectricityUnits((prev) => ({ ...prev, rate: e.target.value }))
+                              }
+                              required
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        </div>
                       </div>
-                    ) : (
-                      <Select
-                        value={paidBy}
-                        onValueChange={(val) => val && setPaidBy(val)}
-                      >
-                        <SelectTrigger className="h-9 text-xs">
-                          <SelectValue placeholder="Select member">
-                            {currentPaidByName}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {members?.map((m) => (
-                            <SelectItem key={m.users.id} value={m.users.id} className="text-xs">
-                              {m.users.name} {m.users.id === currentUserId ? '(You)' : ''}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
                     )}
-                  </div>
 
-                  <div>
-                    <label className="text-xs font-semibold text-foreground block mb-1.5">Month Date</label>
-                    <Input type="date" value={month} onChange={(e) => setMonth(e.target.value)} required className="h-9 text-xs" />
-                  </div>
+                    {/* Dynamic Calculated Total Card */}
+                    <div className="flex items-center justify-between rounded-lg bg-card border border-border/80 px-3.5 py-3 shadow-xs">
+                      <span className="text-xs font-semibold text-muted-foreground">
+                        Calculated Total
+                      </span>
+                      <span className="font-mono text-base font-extrabold text-primary">
+                        NPR {dynamicTotal.toLocaleString()}
+                      </span>
+                    </div>
 
-                  <Button type="submit" disabled={dynamicTotal <= 0} className="w-full h-10 text-xs font-bold shadow-xs">
-                    Record Payment · NPR {dynamicTotal.toLocaleString()}
-                  </Button>
-                </form>
-              ) : (
-                /* Mode B: Manual Custom Entry */
-                <form onSubmit={handleCustomSubmit} className="space-y-4 pt-1">
-                  <div>
-                    <label className="text-xs font-semibold text-foreground block mb-1.5">Bill Name</label>
-                    <Input
-                      placeholder="e.g. House Rent, WiFi Internet, Water Bill"
-                      value={customName}
-                      onChange={(e) => setCustomName(e.target.value)}
-                      required
-                      className="h-9 text-xs"
-                    />
-                  </div>
+                    {/* Paid By Field */}
+                    <div>
+                      <label className="text-xs font-semibold text-foreground block mb-1.5">Paid By</label>
+                      {!isOwner ? (
+                        <div className="flex h-9 w-full items-center justify-between rounded-lg border border-border bg-muted/30 px-3 text-xs font-medium text-foreground">
+                          <span>{currentPaidByName} (You)</span>
+                          <Lock className="size-3.5 text-muted-foreground/70 shrink-0" />
+                        </div>
+                      ) : (
+                        <Select
+                          value={paidBy}
+                          onValueChange={(val) => val && setPaidBy(val)}
+                        >
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder="Select member">
+                              {currentPaidByName}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {members?.map((m) => (
+                              <SelectItem key={m.users.id} value={m.users.id} className="text-xs">
+                                {m.users.name} {m.users.id === currentUserId ? '(You)' : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
 
-                  {/* Paid By Field */}
-                  <div>
-                    <label className="text-xs font-semibold text-foreground block mb-1.5">Paid By</label>
-                    {!isOwner ? (
-                      <div className="flex h-9 w-full items-center justify-between rounded-lg border border-border bg-muted/30 px-3 text-xs font-medium text-foreground">
-                        <span>{currentPaidByName} (You)</span>
-                        <Lock className="size-3.5 text-muted-foreground/70" />
-                      </div>
-                    ) : (
-                      <Select
-                        value={paidBy}
-                        onValueChange={(val) => val && setPaidBy(val)}
-                      >
-                        <SelectTrigger className="h-9 text-xs">
-                          <SelectValue placeholder="Select member">
-                            {currentPaidByName}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {members?.map((m) => (
-                            <SelectItem key={m.users.id} value={m.users.id} className="text-xs">
-                              {m.users.name} {m.users.id === currentUserId ? '(You)' : ''}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </div>
+                    <div>
+                      <label className="text-xs font-semibold text-foreground block mb-1.5">Month Date</label>
+                      <Input type="date" value={month} onChange={(e) => setMonth(e.target.value)} required className="h-9 text-xs" />
+                    </div>
 
-                  <div>
-                    <label className="text-xs font-semibold text-foreground block mb-1.5">Month Date</label>
-                    <Input type="date" value={month} onChange={(e) => setMonth(e.target.value)} required className="h-9 text-xs" />
-                  </div>
+                    <Button type="submit" disabled={dynamicTotal <= 0} className="w-full h-10 text-xs font-bold shadow-xs">
+                      Record Payment · NPR {dynamicTotal.toLocaleString()}
+                    </Button>
+                  </form>
+                ) : (
+                  /* Mode B: Manual Custom Entry */
+                  <form onSubmit={handleCustomSubmit} className="space-y-4 pt-1">
+                    <div>
+                      <label className="text-xs font-semibold text-foreground block mb-1.5">Bill Name</label>
+                      <Input
+                        placeholder="e.g. House Rent, WiFi Internet, Water Bill"
+                        value={customName}
+                        onChange={(e) => setCustomName(e.target.value)}
+                        required
+                        className="h-9 text-xs"
+                      />
+                    </div>
 
-                  <div>
-                    <label className="text-xs font-semibold text-foreground block mb-1.5">Amount (NPR)</label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="e.g. 15000"
-                      value={customAmount}
-                      onChange={(e) => setCustomAmount(e.target.value)}
-                      required
-                      className="h-9 text-xs"
-                    />
-                  </div>
+                    {/* Paid By Field */}
+                    <div>
+                      <label className="text-xs font-semibold text-foreground block mb-1.5">Paid By</label>
+                      {!isOwner ? (
+                        <div className="flex h-9 w-full items-center justify-between rounded-lg border border-border bg-muted/30 px-3 text-xs font-medium text-foreground">
+                          <span>{currentPaidByName} (You)</span>
+                          <Lock className="size-3.5 text-muted-foreground/70 shrink-0" />
+                        </div>
+                      ) : (
+                        <Select
+                          value={paidBy}
+                          onValueChange={(val) => val && setPaidBy(val)}
+                        >
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder="Select member">
+                              {currentPaidByName}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {members?.map((m) => (
+                              <SelectItem key={m.users.id} value={m.users.id} className="text-xs">
+                                {m.users.name} {m.users.id === currentUserId ? '(You)' : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
 
-                  <Button type="submit" disabled={createBillMutation.isPending} className="w-full h-10 text-xs font-bold shadow-xs">
-                    {createBillMutation.isPending ? 'Saving Bill...' : 'Create Custom Bill'}
-                  </Button>
-                </form>
-              )}
-            </DialogContent>
-          </Dialog>
+                    <div>
+                      <label className="text-xs font-semibold text-foreground block mb-1.5">Month Date</label>
+                      <Input type="date" value={month} onChange={(e) => setMonth(e.target.value)} required className="h-9 text-xs" />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-foreground block mb-1.5">Amount (NPR)</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="e.g. 15000"
+                        value={customAmount}
+                        onChange={(e) => setCustomAmount(e.target.value)}
+                        required
+                        className="h-9 text-xs"
+                      />
+                    </div>
+
+                    <Button type="submit" disabled={createBillMutation.isPending} className="w-full h-10 text-xs font-bold shadow-xs">
+                      {createBillMutation.isPending ? 'Saving Bill...' : 'Create Custom Bill'}
+                    </Button>
+                  </form>
+                )}
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </div>
 
-      {/* Manage Bill Templates Dialog */}
-      <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
-        <DialogContent className="max-w-md p-6">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold">Manage Bill Templates</DialogTitle>
-          </DialogHeader>
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!newTemplateName || !newTemplateAmount) return;
-              createTemplateMutation.mutate({
-                name: newTemplateName,
-                type: 'custom',
-                defaultAmount: Number(newTemplateAmount),
-              });
-            }}
-            className="space-y-3 rounded-xl border border-border/80 p-4 bg-muted/20"
-          >
-            <h4 className="text-xs font-bold text-foreground">Propose New Bill Template</h4>
-            <div>
-              <Input
-                placeholder="Bill Name (e.g. Maid / Cleaning)"
-                value={newTemplateName}
-                onChange={(e) => setNewTemplateName(e.target.value)}
-                required
-                className="h-9 text-xs"
+      {/* Main Content Area */}
+      {pageTab === 'logged' ? (
+        /* TAB 1: LOGGED ROOM BILLS */
+        isLoading ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[1, 2].map((i) => (
+              <Skeleton key={i} className="h-32 rounded-2xl" />
+            ))}
+          </div>
+        ) : bills?.length === 0 ? (
+          <Card className="p-8 text-center border-dashed rounded-2xl">
+            <CardHeader className="flex flex-col items-center">
+              <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-3">
+                <Receipt className="size-6" />
+              </div>
+              <CardTitle className="text-base font-bold text-foreground">No recurring room bills logged</CardTitle>
+              <CardDescription className="text-xs">
+                Click &quot;Add Room Bill&quot; to select bill types from the multi-select dropdown and record payment.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {bills?.map((b) => (
+              <BillCard
+                key={b.id}
+                type={b.type}
+                amount={b.amount}
+                month={b.month}
+                paidByName={b.users?.name || b.users?.email?.split('@')[0] || 'Member'}
+                prevUnit={b.prev_unit}
+                currentUnit={b.current_unit}
+                ratePerUnit={b.rate_per_unit}
               />
-            </div>
-            <div>
-              <Input
-                type="number"
-                placeholder="Default Amount (NPR)"
-                value={newTemplateAmount}
-                onChange={(e) => setNewTemplateAmount(e.target.value)}
-                required
-                className="h-9 text-xs"
-              />
-            </div>
-            <Button type="submit" size="sm" disabled={createTemplateMutation.isPending} className="w-full text-xs font-semibold h-9">
-              {createTemplateMutation.isPending ? 'Proposing...' : 'Submit Draft Template'}
-            </Button>
-          </form>
+            ))}
+          </div>
+        )
+      ) : (
+        /* TAB 2: DEDICATED BILL TEMPLATES CATALOG PAGE */
+        <div className="space-y-6">
 
-          {/* Draft Bill Templates List */}
+          {/* Form Card: Propose New Bill Template */}
+          <Card className="rounded-2xl border border-border/70 shadow-xs">
+            <CardHeader>
+              <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
+                <FileText className="size-4 text-primary" />
+                Propose New Room Bill Template
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Save recurring bills (e.g. Maid, Water, Internet) to make them selectable in the Multi-Select Payment Dropdown.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleProposeTemplate} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-foreground block mb-1.5">Template Name</label>
+                    <Input
+                      placeholder="e.g. Maid / House Cleaning"
+                      value={newTemplateName}
+                      onChange={(e) => setNewTemplateName(e.target.value)}
+                      required
+                      className="h-9 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-foreground block mb-1.5">Default Amount (NPR)</label>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 3000"
+                      value={newTemplateAmount}
+                      onChange={(e) => setNewTemplateAmount(e.target.value)}
+                      required
+                      className="h-9 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-foreground block mb-1.5">Bill Type Category</label>
+                    <Select value={newTemplateType} onValueChange={(val: any) => setNewTemplateType(val)}>
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="rent" className="text-xs">House Rent</SelectItem>
+                        <SelectItem value="wifi" className="text-xs">WiFi Internet</SelectItem>
+                        <SelectItem value="waste" className="text-xs">Waste Collection</SelectItem>
+                        <SelectItem value="electricity" className="text-xs">Electricity Meter</SelectItem>
+                        <SelectItem value="custom" className="text-xs">General / Custom</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button type="submit" size="sm" disabled={createTemplateMutation.isPending} className="h-9 text-xs font-bold px-5">
+                    {createTemplateMutation.isPending ? 'Submitting Proposal...' : 'Propose Bill Template'}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Draft Proposals Section */}
           {draftTemplates.length > 0 && (
-            <div className="space-y-2 pt-2">
-              <h4 className="text-xs font-bold text-amber-500 flex items-center gap-1.5">
-                <Clock className="size-3.5" /> Draft Proposals ({draftTemplates.length})
-              </h4>
-              <div className="space-y-2">
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-amber-500 flex items-center gap-2">
+                  <Clock className="size-4" />
+                  Draft Proposals ({draftTemplates.length})
+                </h3>
+                <span className="text-[11px] text-muted-foreground">
+                  Draft proposals require owner approval before appearing in the payment dropdown
+                </span>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {draftTemplates.map((t) => (
-                  <div key={t.id} className="flex items-center justify-between rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5 text-xs">
+                  <div
+                    key={t.id}
+                    className="flex items-center justify-between rounded-xl border border-amber-500/20 bg-background/90 p-3.5 shadow-xs"
+                  >
                     <div>
-                      <span className="font-semibold text-foreground">{t.name}</span>
-                      <p className="font-mono text-[11px] text-muted-foreground">NPR {t.default_amount.toLocaleString()}</p>
+                      <h4 className="font-bold text-sm text-foreground">{t.name}</h4>
+                      <p className="font-mono text-xs font-semibold text-primary mt-0.5">
+                        NPR {t.default_amount.toLocaleString()}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       {isOwner && (
                         <Button
                           size="sm"
                           onClick={() => approveTemplateMutation.mutate(t.id)}
-                          className="h-6 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 font-semibold"
+                          className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 font-semibold"
                         >
-                          Approve
+                          <Check className="size-3.5 mr-1" /> Approve
                         </Button>
                       )}
                       <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => deleteTemplateMutation.mutate(t.id)}
-                        className="size-6 text-muted-foreground hover:text-destructive"
+                        className="size-7 text-muted-foreground hover:text-destructive"
+                        title="Delete proposal"
                       >
-                        <Trash2 className="size-3" />
+                        <Trash2 className="size-3.5" />
                       </Button>
                     </div>
                   </div>
@@ -614,60 +743,52 @@ export default function BillsPage() {
             </div>
           )}
 
-          {/* Approved Templates List */}
-          <div className="space-y-2 pt-2">
-            <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <Check className="size-3.5 text-emerald-500" /> Active Room Templates ({approvedTemplates.length})
-            </h4>
-            <div className="space-y-1.5 max-h-48 overflow-y-auto">
+          {/* Active Verified Templates Grid */}
+          <div>
+            <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+              <Check className="size-4 text-emerald-500" />
+              Active Room Bill Templates ({approvedTemplates.length})
+            </h3>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {approvedTemplates.map((t) => (
-                <div key={t.id} className="flex items-center justify-between rounded-lg border border-border/60 bg-card p-2.5 text-xs">
-                  <span className="font-medium text-foreground">{t.name}</span>
-                  <span className="font-mono font-semibold text-primary">
-                    {t.type === 'electricity' ? 'Meter Rate' : `NPR ${t.default_amount.toLocaleString()}`}
-                  </span>
+                <div
+                  key={t.id}
+                  className="flex items-center justify-between rounded-2xl border border-border/60 bg-card p-4 shadow-sm"
+                >
+                  <div>
+                    <h4 className="font-bold text-sm text-foreground">{t.name}</h4>
+                    <p className="font-mono text-xs font-semibold text-primary mt-0.5">
+                      {t.type === 'electricity' ? 'Per Meter Unit Rate' : `NPR ${t.default_amount.toLocaleString()}`}
+                    </p>
+                  </div>
+
+                  {isOwner && !t.id.startsWith('default-') && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteTemplateMutation.mutate(t.id)}
+                      className="size-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      title="Delete template"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
 
-      {/* Logged Bills List */}
-      {isLoading ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {[1, 2].map((i) => (
-            <Skeleton key={i} className="h-32 rounded-2xl" />
-          ))}
-        </div>
-      ) : bills?.length === 0 ? (
-        <Card className="p-8 text-center border-dashed rounded-2xl">
-          <CardHeader className="flex flex-col items-center">
-            <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-3">
-              <Receipt className="size-6" />
-            </div>
-            <CardTitle className="text-base font-bold text-foreground">No recurring room bills logged</CardTitle>
-            <CardDescription className="text-xs">
-              Click &quot;Add Room Bill&quot; to select bill types from the multi-select dropdown and calculate total payment.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {bills?.map((b) => (
-            <BillCard
-              key={b.id}
-              type={b.type}
-              amount={b.amount}
-              month={b.month}
-              paidByName={b.users?.name || b.users?.email?.split('@')[0] || 'Member'}
-              prevUnit={b.prev_unit}
-              currentUnit={b.current_unit}
-              ratePerUnit={b.rate_per_unit}
-            />
-          ))}
         </div>
       )}
     </div>
+  );
+}
+
+export default function BillsPage() {
+  return (
+    <Suspense fallback={<Skeleton className="h-96 rounded-2xl" />}>
+      <BillsPageContent />
+    </Suspense>
   );
 }
