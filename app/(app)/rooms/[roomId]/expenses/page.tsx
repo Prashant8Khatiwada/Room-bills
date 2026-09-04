@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Lock, Package, Plus, Sparkles, X, Check, Trash2 } from 'lucide-react';
+import { Lock, Package, Plus, X, Check, Trash2, Sparkles } from 'lucide-react';
 
 export default function ExpensesPage() {
   const { roomId, userRole } = useCurrentRoom();
@@ -66,6 +66,15 @@ export default function ExpensesPage() {
       setPaidBy(currentUserId);
     }
   }, [isOwner, currentUserId, paidBy]);
+
+  const currentPaidByName = useMemo(() => {
+    if (!paidBy && currentUserId) {
+      const match = members?.find((m) => m.users.id === currentUserId);
+      return match?.users?.name || userMe?.user?.name || userMe?.user?.email || 'You';
+    }
+    const match = members?.find((m) => m.users.id === paidBy);
+    return match?.users?.name || userMe?.user?.name || userMe?.user?.email || 'You';
+  }, [paidBy, currentUserId, members, userMe]);
 
   // Handle Product Catalog Dropdown selection
   function handleCatalogSelect(prodId: string) {
@@ -122,7 +131,6 @@ export default function ExpensesPage() {
       queryClient.invalidateQueries({ queryKey: ['room-dashboard', roomId] });
       setOpen(false);
 
-      // If created as custom expense (without choosing catalog item), prompt to save to catalog
       if (!variables.product_id && variables.item_name) {
         setLastCustomItem({
           name: variables.item_name,
@@ -191,17 +199,16 @@ export default function ExpensesPage() {
 
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger render={<Button className="bg-primary hover:bg-primary/90 gap-1.5"><Plus className="size-4" /> Add Expense</Button>} />
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md p-6">
             <DialogHeader>
-              <DialogTitle>Record New Room Expense</DialogTitle>
+              <DialogTitle className="text-lg font-bold">Record New Room Expense</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
 
               {/* Product Catalog Dropdown */}
               <div>
-                <label className="text-xs font-semibold text-foreground flex items-center gap-1 mb-1">
-                  <Package className="size-3.5 text-primary" />
-                  Select from Product Catalog (Optional)
+                <label className="text-xs font-semibold text-foreground block mb-1.5">
+                  Select from Product Catalog
                 </label>
                 <Select value={selectedCatalogProduct} onValueChange={(val) => val && handleCatalogSelect(val)}>
                   <SelectTrigger className="h-9 text-xs">
@@ -209,11 +216,11 @@ export default function ExpensesPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="custom" className="text-xs font-medium">
-                      ✨ Custom Expense (Manual Entry)
+                      Custom Expense (Manual Entry)
                     </SelectItem>
                     {products?.map((p) => (
                       <SelectItem key={p.id} value={p.id} className="text-xs">
-                        📦 {p.name} — NPR {p.default_price} / {p.unit_label || 'pcs'}
+                        {p.name} — NPR {p.default_price} / {p.unit_label || 'pcs'}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -240,29 +247,31 @@ export default function ExpensesPage() {
 
               {/* Item Name */}
               <div>
-                <label className="text-xs font-semibold text-foreground">Item Name</label>
+                <label className="text-xs font-semibold text-foreground block mb-1.5">Item Name</label>
                 <Input
                   placeholder="e.g. Milk, Vegetables, Rice"
                   value={itemName}
                   onChange={(e) => setItemName(e.target.value)}
                   disabled={selectedCatalogProduct !== 'custom'}
                   required
+                  className="h-9 text-xs"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-foreground">Quantity</label>
+                  <label className="text-xs font-semibold text-foreground block mb-1.5">Quantity</label>
                   <Input
                     type="number"
                     step="any"
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value)}
                     required
+                    className="h-9 text-xs"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-foreground">Unit Price (NPR)</label>
+                  <label className="text-xs font-semibold text-foreground block mb-1.5">Unit Price (NPR)</label>
                   <Input
                     type="number"
                     step="0.01"
@@ -270,58 +279,65 @@ export default function ExpensesPage() {
                     onChange={(e) => setUnitPrice(e.target.value)}
                     disabled={selectedCatalogProduct !== 'custom'}
                     required
+                    className="h-9 text-xs"
                   />
                 </div>
               </div>
 
-              <div className="text-sm font-bold text-primary flex items-center justify-between bg-muted/40 p-2.5 rounded-lg">
-                <span>Total Calculated Amount:</span>
-                <span className="font-mono text-base font-extrabold">NPR {totalAmount}</span>
+              {/* Calculated Total Card */}
+              <div className="flex items-center justify-between rounded-lg bg-card border border-border/80 px-3.5 py-3 shadow-xs">
+                <span className="text-xs font-semibold text-muted-foreground">
+                  Calculated Total
+                </span>
+                <span className="font-mono text-base font-extrabold text-primary">
+                  NPR {totalAmount.toLocaleString()}
+                </span>
               </div>
 
-              {/* Paid By Selection (Locked if not owner) */}
+              {/* Paid By Selection */}
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-semibold text-foreground">Paid By</label>
-                  {!isOwner && (
-                    <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-medium">
-                      <Lock className="size-3 text-amber-500" />
-                      Locked to logged-in user
-                    </span>
-                  )}
-                </div>
+                <label className="text-xs font-semibold text-foreground block mb-1.5">Paid By</label>
 
-                <Select
-                  value={paidBy}
-                  onValueChange={(val) => val && setPaidBy(val)}
-                  disabled={!isOwner}
-                >
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="Select who paid" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {members?.map((m) => (
-                      <SelectItem key={m.users.id} value={m.users.id} className="text-xs">
-                        {m.users.name} {m.users.id === currentUserId ? '(You)' : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {!isOwner ? (
+                  <div className="flex h-9 w-full items-center justify-between rounded-lg border border-border bg-muted/30 px-3 text-xs font-medium text-foreground">
+                    <span>{currentPaidByName} (You)</span>
+                    <Lock className="size-3.5 text-muted-foreground/70 shrink-0" />
+                  </div>
+                ) : (
+                  <Select
+                    value={paidBy}
+                    onValueChange={(val) => val && setPaidBy(val)}
+                  >
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Select who paid">
+                        {currentPaidByName}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {members?.map((m) => (
+                        <SelectItem key={m.users.id} value={m.users.id} className="text-xs">
+                          {m.users.name} {m.users.id === currentUserId ? '(You)' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-foreground">Expense Date</label>
+                <label className="text-xs font-semibold text-foreground block mb-1.5">Expense Date</label>
                 <Input
                   type="date"
                   value={expenseDate}
                   onChange={(e) => setExpenseDate(e.target.value)}
                   required
+                  className="h-9 text-xs"
                 />
               </div>
 
               <div>
                 <label className="text-xs font-semibold text-foreground block mb-2">Split Shares</label>
-                <div className="space-y-2 rounded-lg border p-3">
+                <div className="space-y-2 rounded-lg border p-3 bg-muted/20">
                   {members?.map((m) => {
                     const uId = m.users.id;
                     const isChecked = checkedMembers[uId] !== false;
@@ -347,8 +363,8 @@ export default function ExpensesPage() {
                 </div>
               </div>
 
-              <Button type="submit" disabled={createMutation.isPending} className="w-full">
-                {createMutation.isPending ? 'Logging Expense...' : 'Save Expense'}
+              <Button type="submit" disabled={createMutation.isPending || totalAmount <= 0} className="w-full h-10 text-xs font-bold shadow-xs">
+                {createMutation.isPending ? 'Logging Expense...' : `Save Expense · NPR ${totalAmount.toLocaleString()}`}
               </Button>
             </form>
           </DialogContent>
@@ -357,23 +373,23 @@ export default function ExpensesPage() {
 
       {/* Post-Expense Catalog Prompt Dialog */}
       <Dialog open={catalogPromptOpen} onOpenChange={setCatalogPromptOpen}>
-        <DialogContent className="max-w-sm text-center">
+        <DialogContent className="max-w-sm text-center p-6">
           <DialogHeader className="flex flex-col items-center">
-            <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-2">
-              <Sparkles className="size-6" />
+            <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary mb-2">
+              <Package className="size-5" />
             </div>
             <DialogTitle className="text-base font-bold">Add to Product Catalog?</DialogTitle>
           </DialogHeader>
           {lastCustomItem && (
             <p className="text-xs text-muted-foreground my-2">
-              Would you like to save <strong>&quot;{lastCustomItem.name}&quot;</strong> (NPR {lastCustomItem.unitPrice}) to the room Product Catalog for easy future selection?
+              Would you like to save <strong>&quot;{lastCustomItem.name}&quot;</strong> (NPR {lastCustomItem.unitPrice}) to the Product Catalog for future quick selection?
             </p>
           )}
           <div className="flex gap-2 pt-2">
             <Button
               variant="outline"
               size="sm"
-              className="flex-1 text-xs"
+              className="flex-1 text-xs h-9 font-medium"
               onClick={() => {
                 setCatalogPromptOpen(false);
                 setLastCustomItem(null);
@@ -383,7 +399,7 @@ export default function ExpensesPage() {
             </Button>
             <Button
               size="sm"
-              className="flex-1 text-xs font-semibold"
+              className="flex-1 text-xs font-semibold h-9"
               disabled={addCatalogMutation.isPending}
               onClick={() => {
                 if (lastCustomItem) {
