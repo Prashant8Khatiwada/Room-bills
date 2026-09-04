@@ -10,12 +10,12 @@ import { api } from '@/lib/apiEndpoints';
 import { BillCard } from '@/components/bills/BillCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Lock, Plus, Receipt, Check, FileText, Clock, Trash2, ChevronDown, X, Layers, Zap, ShieldCheck, Pencil } from 'lucide-react';
+import { Lock, Plus, Receipt, Check, FileText, Clock, Trash2, ChevronDown, X, Layers, Zap, ShieldCheck, Pencil, AlertTriangle, Loader2 } from 'lucide-react';
 
 function BillsPageContent() {
   const { roomId, userRole } = useCurrentRoom();
@@ -23,10 +23,11 @@ function BillsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  // Derived Page View Tab from searchParams: 'logged' | 'templates'
-  const pageTab = searchParams.get('tab') === 'templates' ? 'templates' : 'logged';
+  // Derived Page View Tab from searchParams: 'logged' | 'templates' | 'logs'
+  const rawTab = searchParams.get('tab');
+  const pageTab = rawTab === 'templates' ? 'templates' : rawTab === 'logs' ? 'logs' : 'logged';
 
-  function setPageTab(tab: 'logged' | 'templates') {
+  function setPageTab(tab: 'logged' | 'templates' | 'logs') {
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', tab);
     router.push(`/rooms/${roomId}/bills?${params.toString()}`);
@@ -39,6 +40,7 @@ function BillsPageContent() {
   // Multi-Select Dropdown State
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [selectedTemplates, setSelectedTemplates] = useState<Record<string, boolean>>({});
+  const [templateCustomNames, setTemplateCustomNames] = useState<Record<string, string>>({});
   const [electricityUnits, setElectricityUnits] = useState<{ prev: string; curr: string; rate: string }>({
     prev: '',
     curr: '',
@@ -57,8 +59,9 @@ function BillsPageContent() {
   const [newTemplateAmount, setNewTemplateAmount] = useState('');
   const [newTemplateRate, setNewTemplateRate] = useState('12');
 
-  // Edit Template Dialog State
+  // Edit & Delete Template Dialog State
   const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
+  const [deletingTemplateItem, setDeletingTemplateItem] = useState<any | null>(null);
   const [editName, setEditName] = useState('');
   const [editCategory, setEditCategory] = useState<'fixed' | 'metered'>('fixed');
   const [editAmount, setEditAmount] = useState('');
@@ -74,6 +77,11 @@ function BillsPageContent() {
   const { data: bills, isLoading } = useQuery({
     queryKey: ['bills', roomId],
     queryFn: () => apiClient.get<any[]>(api.bill.list(roomId)),
+  });
+
+  const { data: billLogs } = useQuery({
+    queryKey: ['bill-logs', roomId],
+    queryFn: () => apiClient.get<any[]>(`${api.bill.list(roomId)}?logs=true`),
   });
 
   const { data: templates } = useQuery({
@@ -162,10 +170,21 @@ function BillsPageContent() {
     mutationFn: (data: any) => apiClient.post(api.bill.create(roomId), data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bills', roomId] });
+      queryClient.invalidateQueries({ queryKey: ['bill-logs', roomId] });
       queryClient.invalidateQueries({ queryKey: ['settlement', roomId] });
       queryClient.invalidateQueries({ queryKey: ['room-dashboard', roomId] });
       setOpen(false);
       resetForm();
+    },
+  });
+
+  const deleteLoggedBillMutation = useMutation({
+    mutationFn: (id: string) => apiClient.delete(`${api.bill.list(roomId)}?id=${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bills', roomId] });
+      queryClient.invalidateQueries({ queryKey: ['bill-logs', roomId] });
+      queryClient.invalidateQueries({ queryKey: ['settlement', roomId] });
+      queryClient.invalidateQueries({ queryKey: ['room-dashboard', roomId] });
     },
   });
 
@@ -190,6 +209,7 @@ function BillsPageContent() {
     mutationFn: (id: string) => apiClient.delete(`${api.bill.templates(roomId)}?id=${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bill-templates', roomId] });
+      setDeletingTemplateItem(null);
     },
   });
 
@@ -224,6 +244,7 @@ function BillsPageContent() {
 
   function resetForm() {
     setSelectedTemplates({});
+    setTemplateCustomNames({});
     setCustomName('');
     setCustomAmount('');
     setElectricityUnits({ prev: '', curr: '', rate: '12' });
@@ -242,6 +263,7 @@ function BillsPageContent() {
     if (!paidBy || selectedTemplateItems.length === 0) return;
 
     for (const t of selectedTemplateItems) {
+      const billTitle = (templateCustomNames[t.id] || t.name).trim();
       const isMetered = t.category === 'metered' || t.type === 'electricity' || t.rate_per_unit;
       if (isMetered) {
         const prev = Number(electricityUnits.prev) || 0;
@@ -249,7 +271,7 @@ function BillsPageContent() {
         const rate = Number(t.rate_per_unit) || 12; // Rate locked from template!
         await apiClient.post(api.bill.create(roomId), {
           type: 'electricity',
-          name: t.name,
+          name: billTitle,
           month,
           prev_unit: prev,
           current_unit: curr,
@@ -259,7 +281,7 @@ function BillsPageContent() {
       } else {
         await apiClient.post(api.bill.create(roomId), {
           type: 'rent',
-          name: t.name,
+          name: billTitle,
           month,
           amount: Number(t.default_amount),
           paid_by: paidBy,
@@ -355,6 +377,17 @@ function BillsPageContent() {
               }`}
             >
               Bill Templates ({approvedTemplates.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setPageTab('logs')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${
+                pageTab === 'logs'
+                  ? 'bg-background text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Audit Logs ({billLogs?.length || 0})
             </button>
           </div>
 
@@ -471,6 +504,29 @@ function BillsPageContent() {
                         </div>
                       )}
                     </div>
+
+                    {/* Editable Bill Titles for Selected Templates */}
+                    {selectedTemplateItems.length > 0 && (
+                      <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
+                        <label className="text-[11px] font-semibold text-foreground block">
+                          Bill Title (Editable)
+                        </label>
+                        <div className="space-y-2">
+                          {selectedTemplateItems.map((t) => (
+                            <div key={t.id} className="flex items-center gap-2">
+                              <Input
+                                value={templateCustomNames[t.id] ?? t.name}
+                                onChange={(e) =>
+                                  setTemplateCustomNames((prev) => ({ ...prev, [t.id]: e.target.value }))
+                                }
+                                className="h-8 text-xs bg-background"
+                                placeholder="Edit bill name"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Metered Readings Inputs for Per-Unit Bills */}
                     {isMeteredSelected && (
@@ -675,6 +731,8 @@ function BillsPageContent() {
             {bills?.map((b) => (
               <BillCard
                 key={b.id}
+                id={b.id}
+                name={b.name}
                 type={b.type}
                 amount={b.amount}
                 month={b.month}
@@ -682,11 +740,13 @@ function BillsPageContent() {
                 prevUnit={b.prev_unit}
                 currentUnit={b.current_unit}
                 ratePerUnit={b.rate_per_unit}
+                canDelete={b.paid_by === currentUserId || isOwner}
+                onDelete={() => deleteLoggedBillMutation.mutate(b.id)}
               />
             ))}
           </div>
         )
-      ) : (
+      ) : pageTab === 'templates' ? (
         /* TAB 2: DEDICATED BILL TEMPLATES CATALOG PAGE */
         <div className="space-y-6">
 
@@ -811,7 +871,7 @@ function BillsPageContent() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => deleteTemplateMutation.mutate(t.id)}
+                          onClick={() => setDeletingTemplateItem(t)}
                           className="size-7 text-muted-foreground hover:text-destructive"
                           title="Delete proposal"
                         >
@@ -869,7 +929,7 @@ function BillsPageContent() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => deleteTemplateMutation.mutate(t.id)}
+                            onClick={() => setDeletingTemplateItem(t)}
                             className="size-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                             title="Delete template"
                           >
@@ -955,7 +1015,113 @@ function BillsPageContent() {
             </DialogContent>
           </Dialog>
 
+          {/* Delete Template Confirmation Popup Dialog */}
+          <Dialog open={!!deletingTemplateItem} onOpenChange={(val) => !val && setDeletingTemplateItem(null)}>
+            <DialogContent className="max-w-sm p-6">
+              <DialogHeader>
+                <div className="flex size-10 items-center justify-center rounded-full bg-destructive/10 text-destructive mb-2">
+                  <AlertTriangle className="size-5" />
+                </div>
+                <DialogTitle className="text-base font-bold">Delete Bill Template?</DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  Are you sure you want to delete <strong className="text-foreground">{deletingTemplateItem?.name}</strong>? It will be removed from future multi-select payment options.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="flex justify-end gap-2 pt-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setDeletingTemplateItem(null)}
+                  disabled={deleteTemplateMutation.isPending}
+                  className="h-8 text-xs font-semibold"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => {
+                    if (deletingTemplateItem) {
+                      deleteTemplateMutation.mutate(deletingTemplateItem.id);
+                    }
+                  }}
+                  disabled={deleteTemplateMutation.isPending}
+                  className="h-8 text-xs font-bold gap-1.5"
+                >
+                  {deleteTemplateMutation.isPending ? (
+                    <>
+                      <Loader2 className="size-3.5 animate-spin" /> Deleting...
+                    </>
+                  ) : (
+                    'Delete Template'
+                  )}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
         </div>
+      ) : (
+        /* TAB 3: AUDIT LOGS SECTION */
+        <Card className="rounded-2xl border border-border/70 shadow-xs">
+          <CardHeader>
+            <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
+              <Clock className="size-4 text-primary" />
+              Bill Activity & Audit Logs
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Complete history of created and deleted room bills with timestamps and member actions.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            {(!billLogs || billLogs.length === 0) ? (
+              <div className="p-8 text-center text-xs text-muted-foreground">
+                No bill creation or deletion logs recorded yet.
+              </div>
+            ) : (
+              <div className="divide-y divide-border/60">
+                {billLogs.map((log) => {
+                  const isDeleted = log.action === 'deleted';
+                  const performerName = log.users?.name || log.users?.email?.split('@')[0] || 'Room Member';
+                  const billName = log.details?.name || 'Bill Item';
+                  const amount = log.details?.amount || 0;
+                  const formattedDate = log.created_at
+                    ? new Date(log.created_at).toLocaleString()
+                    : 'Recently';
+
+                  return (
+                    <div key={log.id} className="flex items-center justify-between p-4 text-xs hover:bg-muted/30 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                            isDeleted
+                              ? 'bg-destructive/10 text-destructive border border-destructive/20'
+                              : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                          }`}
+                        >
+                          {isDeleted ? 'Deleted' : 'Created'}
+                        </span>
+                        <div>
+                          <p className="font-bold text-foreground text-sm">
+                            {billName}
+                            {amount > 0 && <span className="font-mono text-primary ml-2 font-extrabold">NPR {amount.toLocaleString()}</span>}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            Action by <span className="font-semibold text-foreground">{performerName}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-mono text-muted-foreground shrink-0">
+                        {formattedDate}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
     </div>
   );
