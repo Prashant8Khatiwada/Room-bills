@@ -29,6 +29,8 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 
+import { RoomAppShell } from '@/components/rooms/RoomAppShell';
+
 export default function PersonalWalletPage() {
   const queryClient = useQueryClient();
 
@@ -68,15 +70,17 @@ export default function PersonalWalletPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-28 rounded-xl" />
-        <div className="grid gap-4 md:grid-cols-4">
-          <Skeleton className="h-32 rounded-xl" />
-          <Skeleton className="h-32 rounded-xl" />
-          <Skeleton className="h-32 rounded-xl" />
-          <Skeleton className="h-32 rounded-xl" />
+      <RoomAppShell>
+        <div className="space-y-6">
+          <Skeleton className="h-28 rounded-xl" />
+          <div className="grid gap-4 md:grid-cols-4">
+            <Skeleton className="h-32 rounded-xl" />
+            <Skeleton className="h-32 rounded-xl" />
+            <Skeleton className="h-32 rounded-xl" />
+            <Skeleton className="h-32 rounded-xl" />
+          </div>
         </div>
-      </div>
+      </RoomAppShell>
     );
   }
 
@@ -111,7 +115,8 @@ export default function PersonalWalletPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <RoomAppShell>
+      <div className="space-y-6">
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
         <div>
@@ -347,5 +352,6 @@ export default function PersonalWalletPage() {
 
       </div>
     </div>
-  );
+  </RoomAppShell>
+);
 }

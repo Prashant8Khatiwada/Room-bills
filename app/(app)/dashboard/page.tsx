@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
+import { RoomAppShell } from '@/components/rooms/RoomAppShell';
+
 export default function GlobalDashboardPage() {
   const router = useRouter();
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -52,7 +54,6 @@ export default function GlobalDashboardPage() {
 
   const userName = userMe?.user?.name || userMe?.user?.email || 'User';
   const firstName = userName.split(' ')[0];
-  const userInitials = userName.substring(0, 2).toUpperCase();
   const roomCount = rooms?.length ?? 0;
 
   // Colour palette for room cards
@@ -75,49 +76,8 @@ export default function GlobalDashboardPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-background text-foreground antialiased">
-
-      {/* ── Top Navigation Bar ─────────────────────────────────── */}
-      <header className="sticky top-0 z-30 h-14 border-b border-border/60 bg-background/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-full max-w-5xl items-center justify-between px-3 sm:px-6">
-
-          {/* Left — brand */}
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-              <Building2 className="size-4" />
-            </div>
-            <span className="text-sm font-bold tracking-tight truncate max-w-[150px] sm:max-w-none">
-              Room Ledger
-            </span>
-          </div>
-
-          {/* Right — actions */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            <ThemeToggle />
-
-            {/* Avatar Pill */}
-            <div className="flex h-8 items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2 text-[11px] font-semibold text-muted-foreground">
-              <div className="size-5 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-[9px] shrink-0">
-                {userInitials}
-              </div>
-              <span className="hidden sm:inline truncate max-w-[80px]">{firstName}</span>
-            </div>
-
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-              onClick={handleLogout}
-              title="Sign out"
-            >
-              <LogOut className="size-4" />
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* ── Page Body ──────────────────────────────────────────── */}
-      <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-10">
+    <RoomAppShell>
+      <div className="space-y-6">
 
         {/* Hero greeting */}
         <div className="mb-8 sm:mb-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/60 pb-6">
@@ -270,7 +230,7 @@ export default function GlobalDashboardPage() {
             })}
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </RoomAppShell>
   );
 }

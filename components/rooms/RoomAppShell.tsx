@@ -19,6 +19,7 @@ import {
   X,
   Settings,
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/apiClient';
 import { api } from '@/lib/apiEndpoints';
 import { useState } from 'react';
@@ -70,11 +71,11 @@ function NavItem({
 }
 
 export function RoomAppShell({
-  roomId,
-  userName,
+  roomId: propRoomId,
+  userName: propUserName,
   children,
 }: {
-  roomId: string;
+  roomId?: string;
   userName?: string;
   children: React.ReactNode;
 }) {
@@ -83,15 +84,41 @@ export function RoomAppShell({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
+  // Fetch current user if not passed
+  const { data: userMe } = useQuery({
+    queryKey: ['me'],
+    queryFn: () => apiClient.get<any>(api.auth.me),
+    enabled: !propUserName,
+  });
+
+  // Fetch rooms list if on global page
+  const { data: rooms } = useQuery({
+    queryKey: ['rooms'],
+    queryFn: () => apiClient.get<any[]>(api.room.list),
+  });
+
+  const userName = propUserName || userMe?.user?.name || userMe?.user?.email || 'User';
+
+  // Determine active roomId: from props, or URL match /rooms/[id], or first available room
+  let activeRoomId = propRoomId;
+  if (!activeRoomId) {
+    const match = pathname.match(/\/rooms\/([^\/]+)/);
+    if (match) {
+      activeRoomId = match[1];
+    } else if (rooms && rooms.length > 0) {
+      activeRoomId = rooms[0].id;
+    }
+  }
+
   async function handleLogout() {
     await apiClient.post(api.auth.logout);
     router.push('/login');
   }
 
-  const navItems = sidebarNavItems(roomId);
-  const mobileItems = bottomNavItems(roomId);
+  const navItems = activeRoomId ? sidebarNavItems(activeRoomId) : [];
+  const mobileItems = activeRoomId ? bottomNavItems(activeRoomId) : [];
   const initials = userName
-    ? userName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
+    ? userName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
     : 'U';
 
   const SidebarContent = () => (
@@ -134,39 +161,43 @@ export function RoomAppShell({
         </div>
 
         {/* Room Navigation */}
-        <div className="px-0.5">
-          <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
-            Room
-          </p>
-          <nav className="flex flex-col gap-0.5">
-            {navItems.map((item) => (
-              <NavItem
-                key={item.href}
-                href={item.href}
-                label={item.label}
-                icon={item.icon}
-                isActive={pathname.startsWith(item.href)}
-              />
-            ))}
-          </nav>
-        </div>
+        {activeRoomId && (
+          <div className="px-0.5">
+            <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+              Room
+            </p>
+            <nav className="flex flex-col gap-0.5">
+              {navItems.map((item) => (
+                <NavItem
+                  key={item.href}
+                  href={item.href}
+                  label={item.label}
+                  icon={item.icon}
+                  isActive={pathname.startsWith(item.href)}
+                />
+              ))}
+            </nav>
+          </div>
+        )}
       </div>
 
       {/* Sidebar Bottom Left Footer: Room Settings */}
-      <div className="border-t border-border p-2.5">
-        <Link
-          href={`/rooms/${roomId}/settings`}
-          onClick={() => setMobileOpen(false)}
-          className={`group flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px] font-medium transition-all ${
-            pathname.startsWith(`/rooms/${roomId}/settings`)
-              ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
-              : 'text-muted-foreground hover:bg-accent/80 hover:text-foreground'
-          }`}
-        >
-          <Settings className="size-4 shrink-0" />
-          <span>Room Settings</span>
-        </Link>
-      </div>
+      {activeRoomId && (
+        <div className="border-t border-border p-2.5">
+          <Link
+            href={`/rooms/${activeRoomId}/settings`}
+            onClick={() => setMobileOpen(false)}
+            className={`group flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px] font-medium transition-all ${
+              pathname.startsWith(`/rooms/${activeRoomId}/settings`)
+                ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
+                : 'text-muted-foreground hover:bg-accent/80 hover:text-foreground'
+            }`}
+          >
+            <Settings className="size-4 shrink-0" />
+            <span>Room Settings</span>
+          </Link>
+        </div>
+      )}
     </div>
   );
 
@@ -312,7 +343,7 @@ export function RoomAppShell({
         {/* Center floating action button */}
         <div className="-mt-5 flex flex-col items-center gap-0.5">
           <Link
-            href={`/rooms/${roomId}/bills`}
+            href={activeRoomId ? `/rooms/${activeRoomId}/bills` : '/dashboard'}
             className="flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/25 ring-4 ring-background active:scale-95 transition-transform"
             title="Add Bill or Expense"
           >
