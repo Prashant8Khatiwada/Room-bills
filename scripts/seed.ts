@@ -1,7 +1,21 @@
-import { createClient } from '@supabase/supabase-js';
+import fs from 'fs';
+import path from 'path';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (typeof process !== 'undefined' && typeof process.loadEnvFile === 'function') {
+  const envLocalPath = path.resolve(process.cwd(), '.env.local');
+  const envPath = path.resolve(process.cwd(), '.env');
+  if (fs.existsSync(envLocalPath)) {
+    try { process.loadEnvFile(envLocalPath); } catch {}
+  } else if (fs.existsSync(envPath)) {
+    try { process.loadEnvFile(envPath); } catch {}
+  }
+}
+
+import { createClient } from '@supabase/supabase-js';
+import { env } from '../lib/envconfig';
+
+const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !serviceRoleKey) {
   console.error('Error: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables are required.');
@@ -18,15 +32,24 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 async function seed() {
   console.log('🌱 Starting seed operation...');
 
+  const adminUser = {
+    email: 'prashantkhatiwada554@gmail.com',
+    password: '#Anihortes123#',
+    name: 'Prashant Khatiwada',
+    isAdmin: true,
+  };
+
   const testUsers = [
-    { email: 'alice@example.com', password: 'Password123!', name: 'Alice Smith' },
-    { email: 'bob@example.com', password: 'Password123!', name: 'Bob Jones' },
-    { email: 'carol@example.com', password: 'Password123!', name: 'Carol Danvers' },
+    adminUser,
+    { email: 'alice@example.com', password: 'Password123!', name: 'Alice Smith', isAdmin: false },
+    { email: 'bob@example.com', password: 'Password123!', name: 'Bob Jones', isAdmin: false },
+    { email: 'carol@example.com', password: 'Password123!', name: 'Carol Danvers', isAdmin: false },
   ];
 
   const createdUserIds: string[] = [];
 
   for (const user of testUsers) {
+    let userId: string | null = null;
     const { data: existingUser } = await supabase
       .from('users')
       .select('id')
@@ -34,8 +57,14 @@ async function seed() {
       .single();
 
     if (existingUser) {
-      createdUserIds.push(existingUser.id);
-      console.log(`User ${user.email} already exists (${existingUser.id})`);
+      userId = existingUser.id;
+      console.log(`User ${user.email} already exists in database (${userId})`);
+      // Update password and auto-confirm email just in case
+      await supabase.auth.admin.updateUserById(existingUser.id, {
+        password: user.password,
+        email_confirm: true,
+        user_metadata: { name: user.name },
+      });
     } else {
       const { data: authData, error: authError } = await supabase.auth.admin.createUser({
         email: user.email,
@@ -45,12 +74,47 @@ async function seed() {
       });
 
       if (authError || !authData.user) {
-        console.error(`Failed to create user ${user.email}:`, authError);
-        continue;
+        if (authError?.message?.includes('already been registered') || (authError as any)?.code === 'email_exists') {
+          // Find user in auth users list
+          const { data: usersList } = await supabase.auth.admin.listUsers();
+          const match = usersList?.users?.find(u => u.email === user.email);
+          if (match) {
+            userId = match.id;
+            await supabase.auth.admin.updateUserById(match.id, {
+              password: user.password,
+              email_confirm: true,
+              user_metadata: { name: user.name },
+            });
+            console.log(`Updated existing auth user ${user.email} (${userId})`);
+          } else {
+            console.error(`Failed to create user ${user.email}:`, authError);
+            continue;
+          }
+        } else {
+          console.error(`Failed to create user ${user.email}:`, authError);
+          continue;
+        }
+      } else {
+        userId = authData.user.id;
+        console.log(`Created user ${user.email} (${userId})`);
       }
+    }
 
-      createdUserIds.push(authData.user.id);
-      console.log(`Created user ${user.email} (${authData.user.id})`);
+    if (userId) {
+      createdUserIds.push(userId);
+      // Ensure user row exists in public.users table (trigger handles new inserts, but if table was created after auth user, upsert it)
+      await supabase
+        .from('users')
+        .upsert({
+          id: userId,
+          email: user.email,
+          name: user.name,
+          is_platform_admin: user.isAdmin,
+        }, { onConflict: 'id' });
+
+      if (user.isAdmin) {
+        console.log(`Marked ${user.email} as platform admin.`);
+      }
     }
   }
 
