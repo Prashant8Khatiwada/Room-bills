@@ -28,50 +28,80 @@
   --color-primary: hsl(var(--primary));
   --color-card-foreground: hsl(var(--card-foreground));
   --color-card: hsl(var(--card));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
   --radius-lg: var(--radius);
 }
 
+/* ─── Light Mode — Clean, crisp, like Linear's light theme ─────────── */
 :root {
-  /* Brand */
-  --primary: 243 75% 59%;         /* indigo-600 #4F46E5 */
+  /* Primary: Linear's signature blue-violet */
+  --primary: 250 89% 60%;           /* #5E6AD2 — Linear blue */
   --primary-foreground: 0 0% 100%;
-  --accent: 189 71% 42%;          /* cyan-600 #0891B2 */
-  --accent-foreground: 0 0% 100%;
 
-  /* Semantic balance colors */
-  --success: 152 60% 36%;         /* emerald-600 #059669 */
+  /* Accent: subtle teal for highlights */
+  --accent: 215 25% 93%;            /* soft slate */
+  --accent-foreground: 222 30% 20%;
+
+  /* Semantic */
+  --success: 142 71% 35%;
   --success-foreground: 0 0% 100%;
-  --danger: 350 65% 51%;          /* rose-600 #E11D48 */
+  --danger: 3 87% 60%;
   --danger-foreground: 0 0% 100%;
-  --warning: 38 85% 50%;          /* amber-500 */
+  --warning: 36 92% 50%;
 
-  /* Neutrals */
-  --background: 220 20% 98%;
-  --foreground: 222 30% 16%;
+  /* Neutrals — very clean like Vercel/Linear */
+  --background: 0 0% 100%;
+  --foreground: 222 22% 11%;
+
   --card: 0 0% 100%;
-  --card-foreground: 222 30% 16%;
-  --muted: 220 16% 94%;
-  --muted-foreground: 220 10% 46%;
-  --border: 220 14% 90%;
-  --input: 220 14% 90%;
-  --ring: 243 75% 59%;
-  --radius: 0.75rem;
+  --card-foreground: 222 22% 11%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 22% 11%;
+
+  --muted: 210 20% 96%;
+  --muted-foreground: 215 15% 50%;
+
+  --border: 214 20% 89%;
+  --input: 214 20% 89%;
+  --ring: 250 89% 60%;
+  --radius: 0.5rem;
 }
 
+/* ─── Dark Mode — Rich, deep, exactly like Linear's dark app shell ──── */
 .dark {
-  --background: 222 28% 12%;
-  --foreground: 220 20% 96%;
-  --card: 222 24% 16%;
-  --card-foreground: 220 20% 96%;
-  --muted: 222 20% 20%;
-  --muted-foreground: 220 12% 65%;
-  --border: 222 18% 24%;
-  --input: 222 18% 24%;
-  --ring: 243 80% 68%;
-  --primary: 243 80% 68%;
+  /* Background layers — deep neutral, not blue-black */
+  --background: 220 13% 9%;         /* #141517 — true dark like Linear */
+  --foreground: 220 14% 93%;        /* near-white text */
+
+  --card: 220 13% 12%;              /* slightly lighter panel */
+  --card-foreground: 220 14% 93%;
+
+  --popover: 220 13% 12%;
+  --popover-foreground: 220 14% 93%;
+
+  --muted: 220 11% 17%;             /* subtle bg for inputs, pills */
+  --muted-foreground: 220 9% 55%;   /* dimmed labels */
+
+  --border: 220 11% 22%;            /* barely-there separator */
+  --input: 220 11% 20%;
+  --ring: 250 89% 65%;
+
+  /* Primary in dark: Linear's vibrant purple-blue */
+  --primary: 250 89% 65%;           /* #6971E0 */
   --primary-foreground: 0 0% 100%;
-  --accent: 189 71% 52%;
-  --accent-foreground: 0 0% 100%;
+
+  /* Accent: active nav items background */
+  --accent: 220 11% 18%;
+  --accent-foreground: 220 14% 93%;
+
+  /* Semantic */
+  --success: 142 69% 42%;
+  --success-foreground: 0 0% 100%;
+  --danger: 3 87% 62%;
+  --danger-foreground: 0 0% 100%;
+  --warning: 36 92% 50%;
 }
 
 @layer base {
@@ -80,5 +110,6 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
 }

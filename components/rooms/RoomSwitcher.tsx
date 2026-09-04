@@ -4,7 +4,9 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/apiClient';
 import { api } from '@/lib/apiEndpoints';
-import { useCurrentRoom } from './CurrentRoomProvider';
+import { useContext } from 'react';
+import { CurrentRoomContext } from './CurrentRoomProvider';
+import { ChevronsUpDown, DoorOpen } from 'lucide-react';
 
 import {
   Select,
@@ -17,7 +19,8 @@ import {
 export function RoomSwitcher() {
   const router = useRouter();
   const pathname = usePathname();
-  const { roomId } = useCurrentRoom();
+  const currentRoom = useContext(CurrentRoomContext);
+  const roomId = currentRoom?.roomId ?? '';
 
   const { data: rooms } = useQuery({
     queryKey: ['rooms'],
@@ -26,15 +29,21 @@ export function RoomSwitcher() {
 
   function handleSelect(newRoomId: string | null) {
     if (!newRoomId || newRoomId === roomId) return;
-    // Keep tab route structure if present (e.g., /expenses -> /rooms/newRoomId/expenses)
     const currentTab = pathname.split('/rooms/')[1]?.split('/')[1] || 'bills';
     router.push(`/rooms/${newRoomId}/${currentTab}`);
   }
 
+  const currentRoomName = rooms?.find((r) => r.id === roomId)?.name;
+
   return (
     <Select value={roomId} onValueChange={handleSelect}>
-      <SelectTrigger className="w-[200px]">
-        <SelectValue placeholder="Select a room" />
+      <SelectTrigger className="w-full h-9 bg-muted/50 border-border/60 hover:bg-muted transition-colors">
+        <div className="flex items-center gap-2 truncate">
+          <DoorOpen className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className="truncate text-sm font-medium text-foreground">
+            {currentRoomName ?? 'Select room'}
+          </span>
+        </div>
       </SelectTrigger>
       <SelectContent>
         {rooms?.map((r) => (

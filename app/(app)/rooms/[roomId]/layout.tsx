@@ -2,9 +2,8 @@ import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/services/auth';
 import { assertRoomMember } from '@/lib/services/rooms';
 import { CurrentRoomProvider } from '@/components/rooms/CurrentRoomProvider';
-import { RoomSwitcher } from '@/components/rooms/RoomSwitcher';
 import { RoomRealtimeWatcher } from '@/components/rooms/RoomRealtimeWatcher';
-import Link from 'next/link';
+import { RoomAppShell } from '@/components/rooms/RoomAppShell';
 
 export default async function RoomShellLayout({
   children,
@@ -29,35 +28,9 @@ export default async function RoomShellLayout({
   return (
     <CurrentRoomProvider roomId={roomId}>
       <RoomRealtimeWatcher />
-      <div className="min-h-screen bg-background">
-        <header className="border-b border-border bg-card px-6 py-4">
-          <div className="mx-auto flex max-w-6xl items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Link href="/dashboard" className="text-sm font-semibold text-accent hover:underline">
-                ← Dashboard
-              </Link>
-              <RoomSwitcher />
-            </div>
-
-            <nav className="flex space-x-6 text-sm font-medium">
-              <Link href={`/rooms/${roomId}/bills`} className="hover:text-primary transition-colors">
-                Bills
-              </Link>
-              <Link href={`/rooms/${roomId}/expenses`} className="hover:text-primary transition-colors">
-                Expenses
-              </Link>
-              <Link href={`/rooms/${roomId}/products`} className="hover:text-primary transition-colors">
-                Products
-              </Link>
-              <Link href={`/rooms/${roomId}/settlement`} className="hover:text-primary transition-colors">
-                Settlement
-              </Link>
-            </nav>
-          </div>
-        </header>
-
-        <main className="mx-auto max-w-6xl p-6">{children}</main>
-      </div>
+      <RoomAppShell roomId={roomId} userName={user.name}>
+        {children}
+      </RoomAppShell>
     </CurrentRoomProvider>
   );
 }

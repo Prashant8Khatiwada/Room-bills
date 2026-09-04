@@ -12,7 +12,7 @@ interface CurrentRoomContextType {
   userRole?: 'owner' | 'member';
 }
 
-const CurrentRoomContext = createContext<CurrentRoomContextType | null>(null);
+export const CurrentRoomContext = createContext<CurrentRoomContextType | null>(null);
 
 export function CurrentRoomProvider({
   roomId,
