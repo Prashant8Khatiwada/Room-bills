@@ -23,15 +23,7 @@ function BillsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  // Category Tab from searchParams: 'rent' | 'expense'
-  const rawCategory = searchParams.get('category');
-  const categoryTab: 'rent' | 'expense' = rawCategory === 'expense' ? 'expense' : 'rent';
-
-  function setCategoryTab(category: 'rent' | 'expense') {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('category', category);
-    router.push(`/rooms/${roomId}/bills?${params.toString()}`);
-  }
+  const categoryTab: 'rent' | 'expense' = 'rent';
 
   // Record Bill Modal State
   const [open, setOpen] = useState(false);

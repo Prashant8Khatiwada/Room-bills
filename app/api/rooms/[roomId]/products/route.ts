@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { listProducts, createProduct, updateProduct, approveProduct, deleteProduct } from '@/lib/services/products';
+import { listBillTemplates, createBillTemplate, updateBillTemplate, approveBillTemplate, deleteBillTemplate } from '@/lib/services/billTemplates';
 import { ok, err } from '@/lib/apiHelpers';
 
 export async function GET(
@@ -15,11 +15,11 @@ export async function GET(
       return err('Unauthorized', 401);
     }
 
-    const products = await listProducts(roomId, session.user.id);
-    return ok(products);
+    const templates = await listBillTemplates(roomId, session.user.id);
+    return ok(templates);
   } catch (error: any) {
     console.error('[API] GET /api/rooms/:roomId/products error:', error);
-    return err(error.message || 'Failed to fetch products', 400);
+    return err(error.message || 'Failed to fetch catalog templates', 400);
   }
 }
 
@@ -37,20 +37,22 @@ export async function POST(
       return err('Unauthorized', 401);
     }
 
-    if (!body.name || body.defaultPrice === undefined) {
-      return err('Name and default price are required', 400);
+    if (!body.name) {
+      return err('Name is required', 400);
     }
 
-    const newProduct = await createProduct(roomId, session.user.id, {
+    const newTemplate = await createBillTemplate(roomId, session.user.id, {
       name: body.name,
-      defaultPrice: Number(body.defaultPrice),
-      unitLabel: body.unitLabel,
+      category: body.category || 'quantity',
+      billCategory: body.billCategory || 'expense',
+      defaultAmount: body.defaultAmount !== undefined ? Number(body.defaultAmount) : body.defaultPrice !== undefined ? Number(body.defaultPrice) : 0,
+      ratePerUnit: body.ratePerUnit ? Number(body.ratePerUnit) : undefined,
     });
 
-    return ok(newProduct);
+    return ok(newTemplate);
   } catch (error: any) {
     console.error('[API] POST /api/rooms/:roomId/products error:', error);
-    return err(error.message || 'Failed to create product', 400);
+    return err(error.message || 'Failed to create catalog template', 400);
   }
 }
 
@@ -68,20 +70,22 @@ export async function PUT(
       return err('Unauthorized', 401);
     }
 
-    if (!body.productId) {
-      return err('Product ID is required', 400);
+    const templateId = body.templateId || body.productId;
+    if (!templateId) {
+      return err('Template ID is required', 400);
     }
 
-    const updated = await updateProduct(roomId, body.productId, session.user.id, {
+    const updated = await updateBillTemplate(roomId, templateId, session.user.id, {
       name: body.name,
-      defaultPrice: body.defaultPrice ? Number(body.defaultPrice) : undefined,
-      unitLabel: body.unitLabel,
+      category: body.category,
+      defaultAmount: body.defaultAmount !== undefined ? Number(body.defaultAmount) : body.defaultPrice !== undefined ? Number(body.defaultPrice) : undefined,
+      ratePerUnit: body.ratePerUnit !== undefined ? Number(body.ratePerUnit) : undefined,
     });
 
     return ok(updated);
   } catch (error: any) {
     console.error('[API] PUT /api/rooms/:roomId/products error:', error);
-    return err(error.message || 'Failed to update product', 400);
+    return err(error.message || 'Failed to update catalog template', 400);
   }
 }
 
@@ -99,15 +103,16 @@ export async function PATCH(
       return err('Unauthorized', 401);
     }
 
-    if (!body.productId) {
-      return err('Product ID is required', 400);
+    const templateId = body.templateId || body.productId;
+    if (!templateId) {
+      return err('Template ID is required', 400);
     }
 
-    const approved = await approveProduct(roomId, body.productId, session.user.id);
+    const approved = await approveBillTemplate(roomId, templateId, session.user.id);
     return ok(approved);
   } catch (error: any) {
     console.error('[API] PATCH /api/rooms/:roomId/products error:', error);
-    return err(error.message || 'Failed to approve product', 400);
+    return err(error.message || 'Failed to approve catalog template', 400);
   }
 }
 
@@ -118,10 +123,10 @@ export async function DELETE(
   try {
     const { roomId } = await params;
     const { searchParams } = new URL(request.url);
-    const productId = searchParams.get('id');
+    const templateId = searchParams.get('id');
 
-    if (!productId) {
-      return err('Product ID is required', 400);
+    if (!templateId) {
+      return err('Template ID is required', 400);
     }
 
     const supabase = await createClient();
@@ -131,10 +136,10 @@ export async function DELETE(
       return err('Unauthorized', 401);
     }
 
-    await deleteProduct(roomId, productId, session.user.id);
+    await deleteBillTemplate(roomId, templateId, session.user.id);
     return ok(null);
   } catch (error: any) {
     console.error('[API] DELETE /api/rooms/:roomId/products error:', error);
-    return err(error.message || 'Failed to delete product', 400);
+    return err(error.message || 'Failed to delete catalog template', 400);
   }
 }

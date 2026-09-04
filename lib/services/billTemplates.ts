@@ -6,7 +6,7 @@ export interface BillTemplateItem {
   id: string;
   room_id: string;
   name: string;
-  category: 'fixed' | 'metered';
+  category: 'fixed' | 'quantity' | 'metered';
   bill_category?: 'rent' | 'expense';
   type?: 'rent' | 'electricity' | 'waste' | 'wifi' | 'expense' | 'custom';
   default_amount: number;
@@ -21,8 +21,8 @@ const DEFAULT_ROOM_TEMPLATES: Omit<BillTemplateItem, 'id' | 'room_id'>[] = [
   { name: 'WiFi / Internet', category: 'fixed', bill_category: 'rent', type: 'wifi', default_amount: 1200, status: 'approved' },
   { name: 'Waste Collection', category: 'fixed', bill_category: 'rent', type: 'waste', default_amount: 300, status: 'approved' },
   { name: 'Electricity Meter', category: 'metered', bill_category: 'rent', type: 'electricity', default_amount: 0, rate_per_unit: 12, status: 'approved' },
-  { name: 'Groceries', category: 'fixed', bill_category: 'expense', type: 'expense', default_amount: 0, status: 'approved' },
-  { name: 'Vegetables', category: 'fixed', bill_category: 'expense', type: 'expense', default_amount: 0, status: 'approved' },
+  { name: 'Groceries', category: 'quantity', bill_category: 'expense', type: 'expense', default_amount: 0, status: 'approved' },
+  { name: 'Vegetables', category: 'quantity', bill_category: 'expense', type: 'expense', default_amount: 0, status: 'approved' },
 ];
 
 export async function listBillTemplates(roomId: string, userId: string, billCategory?: 'rent' | 'expense'): Promise<BillTemplateItem[]> {
@@ -96,7 +96,7 @@ export async function listBillTemplates(roomId: string, userId: string, billCate
 export async function createBillTemplate(
   roomId: string,
   userId: string,
-  payload: { name: string; category: 'fixed' | 'metered'; billCategory?: 'rent' | 'expense'; defaultAmount?: number; ratePerUnit?: number; type?: string }
+  payload: { name: string; category: 'fixed' | 'quantity' | 'metered'; billCategory?: 'rent' | 'expense'; defaultAmount?: number; ratePerUnit?: number; type?: string }
 ): Promise<BillTemplateItem> {
   await assertRoomMember(roomId, userId);
   const supabase = await createClient();

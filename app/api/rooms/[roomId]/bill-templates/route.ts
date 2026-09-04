@@ -46,7 +46,7 @@ export async function POST(
 
     const newTemplate = await createBillTemplate(roomId, session.user.id, {
       name: body.name,
-      category: body.category === 'metered' ? 'metered' : 'fixed',
+      category: body.category === 'metered' ? 'metered' : body.category === 'quantity' ? 'quantity' : 'fixed',
       billCategory: body.billCategory === 'expense' ? 'expense' : 'rent',
       defaultAmount: body.defaultAmount ? Number(body.defaultAmount) : 0,
       ratePerUnit: body.ratePerUnit ? Number(body.ratePerUnit) : undefined,

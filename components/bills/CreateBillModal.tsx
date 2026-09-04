@@ -99,7 +99,7 @@ export function CreateBillModal({
     const items: Array<{
       id: string;
       name: string;
-      source: 'template' | 'product';
+      source: 'template';
       calcMode: BillCalcMode;
       defaultAmount?: number;
       ratePerUnit?: number;
@@ -108,28 +108,22 @@ export function CreateBillModal({
 
     (approvedTemplates || []).forEach((t) => {
       const isMetered = t.category === 'metered' || t.type === 'electricity' || !!t.rate_per_unit;
+      const isQuantity = t.category === 'quantity' || t.unit_label || (t.bill_category === 'expense' && t.category !== 'fixed' && !isMetered);
+      const mode: BillCalcMode = isMetered ? 'metered' : isQuantity ? 'quantity' : 'fixed';
+
       items.push({
         id: t.id,
         name: t.name,
         source: 'template',
-        calcMode: isMetered ? 'metered' : 'fixed',
+        calcMode: mode,
         defaultAmount: t.default_amount,
         ratePerUnit: t.rate_per_unit || 12,
-      });
-    });
-
-    (products || []).forEach((p) => {
-      items.push({
-        id: p.id,
-        name: p.name,
-        source: 'product',
-        calcMode: 'quantity',
-        defaultPrice: p.default_price,
+        defaultPrice: t.default_price || t.default_amount,
       });
     });
 
     return items;
-  }, [approvedTemplates, products]);
+  }, [approvedTemplates]);
 
   const filteredSuggestions = useMemo(() => {
     if (!name.trim()) return catalogSuggestions;
@@ -141,19 +135,14 @@ export function CreateBillModal({
     setName(item.name);
     setCalcMode(item.calcMode);
     setIsDropdownOpen(false);
+    setSelectedProductId(item.id);
 
-    if (item.source === 'product') {
-      setSelectedProductId(item.id);
-      if (item.defaultPrice) {
-        setUnitPrice(String(item.defaultPrice));
-      }
-    } else {
-      setSelectedProductId(null);
-      if (item.calcMode === 'metered') {
-        if (item.ratePerUnit) setRatePerUnit(String(item.ratePerUnit));
-      } else if (item.calcMode === 'fixed') {
-        if (item.defaultAmount) setAmount(String(item.defaultAmount));
-      }
+    if (item.calcMode === 'metered') {
+      if (item.ratePerUnit) setRatePerUnit(String(item.ratePerUnit));
+    } else if (item.calcMode === 'quantity') {
+      if (item.defaultPrice) setUnitPrice(String(item.defaultPrice));
+    } else if (item.calcMode === 'fixed') {
+      if (item.defaultAmount) setAmount(String(item.defaultAmount));
     }
   }
 
